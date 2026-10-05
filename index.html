@@ -334,8 +334,6 @@ body { background: #f8f4eb; color: #3f2a1e; }
     </div>
     <div class="p-6 border-t grid grid-cols-3 gap-3">
       <button onclick="editCurrentPerson()" class="bg-[#8d5524] text-white py-4 rounded-2xl font-bold">✏️</button>
-      <button onclick="addChildToCurrent()" class="bg-green-700 text-white py-4 rounded-2xl font-bold">➕ Ребёнка</button>
-      <button onclick="addPartnerToCurrent()" class="bg-violet-700 text-white py-4 rounded-2xl font-bold">💑 Партнёра</button>
       <button onclick="addRelativeToCurrent()" class="col-span-3 bg-[#6b5c4a] text-white py-3 rounded-2xl font-bold">➕ Добавить родственника</button>
       <button onclick="changeRelationStatus()" class="col-span-3 bg-amber-600 text-white py-3 rounded-2xl font-bold">Изменить статус связи</button>
       <button onclick="deleteCurrentPerson()" class="bg-red-700 text-white py-4 rounded-2xl font-bold">🗑 Удалить</button>
@@ -748,6 +746,22 @@ function editCurrentPerson() {
 }
 
 /* ================== ГАЛЕРЕЯ ДРЕВА ================== */
+function returnFromPersonalTreeGallery(ownerId) {
+  const owner = getPerson(ownerId);
+  if (!owner) return;
+  const gal = document.getElementById("personalTreeGalleryPage");
+  if (gal) gal.remove();
+  viewMode = "personal";
+  currentOwnerId = ownerId;
+  if (location.hash !== "#tree_" + ownerId) {
+    location.hash = "tree_" + ownerId;
+    return;
+  }
+  renderPersonalTree(ownerId);
+  treeViewKey = "";
+  setTimeout(() => fitTreeView(true), 0);
+}
+
 function openPersonalTreeGallery(ownerId) {
   currentOwnerId = ownerId;
   const owner = getPerson(ownerId);
@@ -789,7 +803,7 @@ function openPersonalTreeGallery(ownerId) {
     </div>
     <div id="personalTreeGallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     <div class="mt-8 text-center">
-      <button onclick="location.hash='tree_${ownerId}'" class="back-btn">← Вернуться к древу</button>
+      <button onclick="returnFromPersonalTreeGallery(${ownerId})" class="back-btn">← Вернуться к древу</button>
     </div>
   `;
   container.appendChild(gal);
