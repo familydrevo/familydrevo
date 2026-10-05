@@ -679,7 +679,21 @@ function showPerson(id) {
     <p><strong>Биография:</strong> ${p.info || '—'}</p>
     <p><strong>Статус связи:</strong> ${p.relationType || '—'}</p>
     ${spouseList ? `<p class="pt-4 border-t"><strong>Супруг(и)/партнёр(ы):</strong> ${spouseList}</p>` : ''}
+    <div class="pt-4 border-t">
+      <p class="font-bold mb-2">Родители</p>
+      <div class="grid grid-cols-1 gap-2">
+        <label class="text-sm"><span class="font-semibold">Отец</span>
+          <select id="fatherSelect" class="w-full border rounded-xl px-3 py-2 mt-1 bg-white"></select>
+        </label>
+        <label class="text-sm"><span class="font-semibold">Мать</span>
+          <select id="motherSelect" class="w-full border rounded-xl px-3 py-2 mt-1 bg-white"></select>
+        </label>
+      </div>
+      <button onclick="saveParentsForCurrent()" class="w-full bg-emerald-700 text-white py-3 rounded-2xl font-bold mt-3">👨‍👩‍👧 Сохранить родителей</button>
+    </div>
   `;
+  populateParentSelectors(p);
+
   document.getElementById("spouseBtn").classList.toggle("hidden", spouses.length === 0);
 
   const ownTreeBtn = document.getElementById("ownTreeBtn");
@@ -692,6 +706,100 @@ function showPerson(id) {
   }
 
   document.getElementById("modal").classList.remove("hidden");
+}
+
+function getPersonGender(person) {
+  if (!person) return null;
+  const rel = String(person.relationType || "").toLowerCase();
+  const photo = String(person.photo || "");
+  if (/муж|отец|сын|брат|мальчик|мужчин/.test(rel) || /👨|👴|👦/.test(photo)) return "m";
+  if (/жен|мать|дочь|сестр|девочк|женщин/.test(rel) || /👩|👵|👧/.test(photo)) return "f";
+  return null;
+}
+
+function getBirthYear(person) {
+  if (!person || !person.years) return null;
+  const m = String(person.years).match(/(?:^|[^0-9])(1[5-9]\d{2}|20\d{2})(?:[^0-9]|$)/);
+  return m ? Number(m[1]) : null;
+}
+
+function getParentCandidates(person, gender) {
+  const sc = currentScope();
+  let pool;
+  if (sc === null) {
+    // В основном древе показываем только людей, реально относящихся к основному древу.
+    pool = family.filter(inMain);
+  } else {
+    // В личном древе показываем только людей, которые присутствуют именно в этом древе.
+    pool = getPersonalTreeMembers(sc);
+  }
+
+  const childYear = getBirthYear(person);
+  return pool
+    .filter(x => x.id !== person.id)
+    .filter(x => getPersonGender(x) === gender)
+    .filter(x => {
+      const parentYear = getBirthYear(x);
+      // Если известны оба года, родитель должен быть старше ребёнка.
+      // Если год неизвестен, не исключаем человека автоматически.
+      return childYear == null || parentYear == null || parentYear < childYear;
+    })
+    .sort((a, b) => {
+      const ay = getBirthYear(a), by = getBirthYear(b);
+      if (ay != null && by != null) return ay - by;
+      if (ay != null) return -1;
+      if (by != null) return 1;
+      return String(a.name).localeCompare(String(b.name), 'ru');
+    });
+}
+
+function populateParentSelectors(person) {
+  const father = document.getElementById("fatherSelect");
+  const mother = document.getElementById("motherSelect");
+  if (!father || !mother) return;
+  const fatherCandidates = getParentCandidates(person, "m");
+  const motherCandidates = getParentCandidates(person, "f");
+  const esc = v => String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  const makeOptions = (candidates, selectedId, emptyLabel) => [
+    `<option value="">${emptyLabel}</option>`,
+    ...candidates.map(x => `<option value="${x.id}" ${x.id === selectedId ? "selected" : ""}>${esc(x.name)}${x.years ? " — " + esc(x.years) : ""}</option>`)
+  ].join("");
+  father.innerHTML = makeOptions(fatherCandidates, person.parentId, "— не выбран —");
+  mother.innerHTML = makeOptions(motherCandidates, person.parentId2, "— не выбрана —");
+}
+
+function saveParentsForCurrent() {
+  const person = getPerson(currentEditId);
+  if (!person) return;
+  const fatherId = Number(document.getElementById("fatherSelect")?.value) || null;
+  const motherId = Number(document.getElementById("motherSelect")?.value) || null;
+  if (fatherId === person.id || motherId === person.id) return alert("Человек не может быть собственным родителем.");
+  if (fatherId && motherId && fatherId === motherId) return alert("Отец и мать должны быть разными людьми.");
+
+  const oldParents = [person.parentId, person.parentId2].filter(Boolean);
+  oldParents.forEach(pid => {
+    const old = getPerson(pid);
+    if (old && Array.isArray(old.spouseIds)) {
+      old.spouseIds = old.spouseIds.filter(id => ![fatherId, motherId].includes(id));
+    }
+  });
+
+  person.parentId = fatherId;
+  person.parentId2 = motherId;
+  if (fatherId && motherId) {
+    const father = getPerson(fatherId);
+    const mother = getPerson(motherId);
+    if (father && mother) {
+      father.spouseIds = Array.isArray(father.spouseIds) ? father.spouseIds : [];
+      mother.spouseIds = Array.isArray(mother.spouseIds) ? mother.spouseIds : [];
+      if (!father.spouseIds.includes(mother.id)) father.spouseIds.push(mother.id);
+      if (!mother.spouseIds.includes(father.id)) mother.spouseIds.push(father.id);
+    }
+  }
+  saveState();
+  showPerson(person.id);
+  renderAll();
+  showToast("👨‍👩‍👧 Родители сохранены");
 }
 
 function openOwnFamilyTree() {
