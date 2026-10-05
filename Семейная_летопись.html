@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Семейная летопись</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&amp;display=swap" rel="stylesheet">
+<style>
+body { background: #f8f4eb; color: #3f2a1e; }
+.title { font-family:'Great Vibes',cursive; font-size:5rem; color:#3f2a1e; text-align:center; margin:10px 0 20px; letter-spacing:6px; text-shadow:3px 3px 8px rgba(0,0,0,0.1); }
+.person-card { transition:all 0.3s; cursor:pointer; background:#fffaf0; }
+.person-card:hover { transform:translateY(-5px); box-shadow:0 15px 25px -5px rgb(139 69 19 / 0.3); }
+.photo-card:hover { transform:scale(1.04); box-shadow:0 10px 25px rgba(0,0,0,0.15); }
+.tab-button { color:#6b5c4a; }
+.tab-button.active { color:#3f2a1e; }
+.photo-sort-btn, .photo-filter-btn {
+  padding: 6px 14px; border-radius: 14px;
+  background: #f0e6d2; color: #6b5c4a;
+  font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  border: 1px solid #d4b89e; transition: all 0.15s;
+}
+.photo-sort-btn:hover, .photo-filter-btn:hover { background: #e8d9bf; color: #3f2a1e; }
+.photo-sort-btn.active, .photo-filter-btn.active { background: #8d5524; color: #fff; border-color: #8d5524; }
+.photo-kind-badge {
+  display: inline-block; padding: 2px 10px; border-radius: 10px;
+  font-size: 0.75rem; font-weight: 700;
+  background: #f0e6d2; color: #6b5c4a; margin-bottom: 6px;
+}
+.back-btn {
+  display:inline-flex; align-items:center; gap:6px;
+  background:#6b5c4a; color:#fff; padding:8px 18px;
+  border-radius:14px; font-weight:700; font-size:0.9rem;
+  cursor:pointer; border:none;
+}
+.back-btn:hover { background:#4e4136; }
+
+.tree-viewport {
+  position: relative; overflow: hidden;
+  background: #fffaf0; border-radius: 20px;
+  border: 1px solid #f0e6d2;
+  cursor: grab; user-select: none; -webkit-user-select: none;
+  touch-action: none;
+}
+.tree-viewport.dragging { cursor: grabbing; }
+.tree-canvas {
+  position: absolute; top: 0; left: 0;
+  transform-origin: 0 0;
+  width: max-content;
+  padding: 20px;
+}
+.zoom-controls {
+  position: absolute; right: 14px; bottom: 14px;
+  display: flex; gap: 4px; z-index: 5;
+  background: rgba(255,250,240,0.96);
+  padding: 5px; border-radius: 12px;
+  border: 1px solid #d4b89e;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+.zoom-controls button {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: #f0e6d2; color: #6b5c4a;
+  border: 1px solid #d4b89e;
+  font-weight: 700; font-size: 16px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.zoom-controls button:hover { background: #e8d9bf; color: #3f2a1e; }
+.zoom-controls .zoom-level {
+  padding: 0 8px; font-size: 0.8rem; font-weight: 700;
+  color: #6b5c4a; display: inline-flex; align-items: center;
+  min-width: 46px; justify-content: center;
+}
+.tree-help {
+  position: absolute; left: 14px; bottom: 14px;
+  font-size: 0.72rem; color: #8a7a68;
+  background: rgba(255,250,240,0.9);
+  padding: 4px 10px; border-radius: 10px;
+  border: 1px solid #f0e6d2;
+  z-index: 5; pointer-events: none;
+}
+
+.tree { display: inline-block; text-align: center; }
+.tree, .tree ul { margin: 0; padding: 0; list-style: none; }
+.tree ul { display: flex; justify-content: center; padding-top: 28px; position: relative; }
+.tree li { display: flex; flex-direction: column; align-items: center; position: relative; padding: 28px 8px 0; list-style: none; }
+.tree li::before, .tree li::after {
+  content: ''; position: absolute; top: 0; right: 50%;
+  border-top: 2px solid #8d5524; width: 50%; height: 28px;
+}
+.tree li::after { right: auto; left: 50%; border-left: 2px solid #8d5524; }
+.tree li:only-child::after, .tree li:only-child::before { display: none; }
+.tree li:only-child { padding-top: 0; }
+.tree li:first-child::before, .tree li:last-child::after { border: 0 none; }
+.tree li:last-child::before { border-right: 2px solid #8d5524; border-radius: 0 6px 0 0; }
+.tree li:first-child::after { border-radius: 6px 0 0 0; }
+.tree ul ul::before {
+  content: ''; position: absolute; top: 0; left: 50%;
+  border-left: 2px solid #8d5524; width: 0; height: 28px;
+}
+
+.node-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.tree-node {
+  display: inline-flex; flex-direction: column; align-items: center;
+  background: #fff;
+  border: 2px solid #8d5524; border-radius: 16px;
+  padding: 10px 12px; cursor: pointer;
+  transition: all 0.2s;
+  min-width: 120px; max-width: 210px;
+  text-align: center;
+  position: relative; z-index: 1;
+  box-shadow: 0 4px 10px rgba(139,69,19,0.08);
+}
+.tree-node:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 20px -6px rgb(139 69 19 / 0.35);
+  filter: brightness(1.03);
+}
+.tree-node.is-main { border-width: 3px; }
+.tree-node.is-spouse {
+  border-style: dashed;
+  min-width: 100px; max-width: 180px;
+  padding: 8px 10px;
+  filter: saturate(0.75);
+}
+
+.node-photo {
+  width: 64px; height: 64px;
+  border-radius: 12px;
+  object-fit: cover;
+  margin: 0 auto 6px;
+  display: block;
+  border: 2px solid rgba(255,255,255,0.7);
+  background: #f5e8d3;
+}
+.node-photo-emoji {
+  font-size: 2.2rem;
+  line-height: 64px;
+  text-align: center;
+  margin: 0 auto 6px;
+  width: 64px; height: 64px;
+  border-radius: 12px;
+  border: 2px solid rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.55);
+  display: block;
+}
+.node-name { font-weight: 700; font-size: 0.86rem; color: #3f2a1e; line-height: 1.2; }
+.node-years { font-size: 0.66rem; color: #5c4033; margin-top: 2px; opacity: 0.85; }
+
+.couple-link {
+  width: 22px;
+  height: 2px;
+  background: #c0392b;
+  position: relative;
+  align-self: center;
+}
+.couple-link::after {
+  content: '💍';
+  position: absolute;
+  top: -10px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  background: #fffaf0;
+  padding: 0 2px;
+}
+
+.pair-children {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding-top: 28px;
+}
+.pair-children::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  border-left: 2px solid #8d5524;
+  height: 28px;
+}
+.pair-children > ul { padding-top: 0; }
+
+.list-photo {
+  width: 60px; height: 60px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 2px solid #d4b89e;
+  background: #f5e8d3;
+  flex-shrink: 0;
+}
+.list-photo-emoji {
+  width: 60px; height: 60px;
+  border-radius: 14px;
+  border: 2px solid #d4b89e;
+  background: #f5e8d3;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.palette-0 { background: linear-gradient(180deg, #fff8ec 0%, #f7e6cf 100%); border-color: #b07a44; }
+.palette-1 { background: linear-gradient(180deg, #fff1e4 0%, #f3d5b5 100%); border-color: #c98a4b; }
+.palette-2 { background: linear-gradient(180deg, #fdeede 0%, #eec9a3 100%); border-color: #d49a58; }
+.palette-3 { background: linear-gradient(180deg, #fbe7d3 0%, #e6b98a 100%); border-color: #c68a48; }
+.palette-4 { background: linear-gradient(180deg, #f7e0c8 0%, #d9a878 100%); border-color: #b57a3d; }
+.palette-5 { background: linear-gradient(180deg, #f1d7ba 0%, #c89468 100%); border-color: #a06c30; }
+.palette-6 { background: linear-gradient(180deg, #ebcfae 0%, #b88355 100%); border-color: #8d5524; }
+.tree-node.is-deceased { border-color:#4a5568; box-shadow:0 4px 10px rgba(74,85,104,0.28); }
+.tree-node.is-deceased:hover { box-shadow:0 12px 20px -6px rgb(74 85 104 / 0.45); }
+.person-card.is-deceased { border-color:#4a5568 !important; }
+.tree-badge { display:inline-block; margin-top:4px; padding:1px 8px; border-radius:8px; background:#f0e6d2; color:#6b5c4a; font-size:.7rem; font-weight:700; }
+/* адаптивность */
+#modal{overflow-y:auto;align-items:flex-start!important;padding:12px 0}
+#modal>div{margin-top:auto;margin-bottom:auto}
+@media (max-width:640px){
+.title{font-size:2.6rem!important;letter-spacing:2px!important;margin:6px 0 12px!important}
+#contentContainer,#tabsWrapper,#backBar{padding-left:10px!important;padding-right:10px!important}
+#content-main,#content-list,#content-photos,#personalTreeGalleryPage{padding:14px!important;border-radius:20px!important}
+#tabsBar{gap:4px!important;margin-bottom:14px!important}
+.tab-button{padding:8px 10px!important;font-size:.85rem}
+#tabsBar>.ml-auto{margin-left:0!important;width:100%;justify-content:space-between}
+.zoom-controls button{width:40px;height:40px}
+.tree-help{display:none}
+}
+/* галерея */
+.gal-row{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;margin-bottom:12px}
+.gal-row>span{font-size:.85rem;font-weight:700;color:#6b5c4a}
+.gal-h{font-weight:700;font-size:1.1rem;color:#5c4033;border-bottom:1px solid #d4b89e;padding-bottom:4px;margin-top:8px}
+/* окно фото и просмотрщик */
+.pdlg,#viewer{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.72);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:12px}
+#viewer.hidden{display:none}
+.pdlg-box{background:#fff;border-radius:20px;width:100%;max-width:560px;margin:auto;overflow:hidden}
+.pdlg-head{display:flex;justify-content:space-between;align-items:center;background:#5c4033;color:#fff;padding:12px 16px}
+.pdlg-head button{background:none;border:0;color:#fff;font-size:28px;line-height:1;cursor:pointer}
+.pdlg-body{padding:14px 16px}
+.pdlg-body label{display:block;font-size:.8rem;font-weight:700;color:#6b5c4a;margin:10px 0 3px}
+.pdlg-body input,.pdlg-body select,.pdlg-body textarea{width:100%;box-sizing:border-box;border:1px solid #d4b89e;border-radius:10px;padding:9px;font-size:16px;background:#fffaf0}
+.pdlg-foot{display:flex;gap:8px;padding:12px 16px;border-top:1px solid #f0e6d2}
+.pdlg-foot button,.vw-actions button{background:#8d5524;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer}
+.pdlg-foot .sec{background:#6b5c4a}
+.crop-stage{position:relative;display:inline-block;touch-action:none;user-select:none;-webkit-user-select:none;max-width:100%;overflow:hidden;line-height:0;border-radius:8px;background:#eee}
+.crop-stage img{max-width:100%;max-height:50vh;display:block;pointer-events:none}
+#cropRect{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);box-sizing:border-box;cursor:move}
+#cropRect i{position:absolute;width:18px;height:18px;background:#fff;border:2px solid #8d5524;border-radius:5px;box-sizing:border-box}
+#cropRect i:nth-child(1){left:-9px;top:-9px}#cropRect i:nth-child(2){right:-9px;top:-9px}
+#cropRect i:nth-child(3){left:-9px;bottom:-9px}#cropRect i:nth-child(4){right:-9px;bottom:-9px}
+.crop-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0;font-size:.8rem;color:#6b5c4a}
+.crop-tools select{width:auto!important;padding:6px!important}
+.crop-tools button{background:#6b5c4a;color:#fff;border:0;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer}
+.vw-box{background:#fff;border-radius:20px;width:100%;max-width:1100px;margin:auto;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.vw-img{position:relative;background:#1f1a15;display:flex;align-items:center;justify-content:center}
+.vw-img img{max-width:100%;max-height:58vh;object-fit:contain;display:block}
+.vw-info{padding:16px;line-height:1.5;font-size:.95rem}
+.vw-info p{margin:6px 0}
+.vw-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.vw-actions .del{background:#b91c1c}
+.vw-x{position:absolute;top:8px;right:10px;z-index:3;width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:24px;cursor:pointer}
+.vw-nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:56px;border:0;border-radius:10px;background:rgba(0,0,0,.45);color:#fff;font-size:30px;cursor:pointer}
+.vw-nav.l{left:8px}.vw-nav.r{right:8px}
+@media (min-width:860px){.vw-box{flex-direction:row}.vw-img{flex:1 1 auto}.vw-img img{max-height:86vh}.vw-info{flex:0 0 340px;max-height:86vh;overflow-y:auto}}
+</style>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.inset-0{inset:0px}.bottom-3{bottom:0.75rem}.right-3{right:0.75rem}.z-50{z-index:50}.col-span-3{grid-column:span 3 / span 3}.col-span-full{grid-column:1 / -1}.mx-4{margin-left:1rem;margin-right:1rem}.mx-auto{margin-left:auto;margin-right:auto}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mb-8{margin-bottom:2rem}.ml-2{margin-left:0.5rem}.ml-auto{margin-left:auto}.mr-2{margin-right:0.5rem}.mt-6{margin-top:1.5rem}.flex{display:flex}.grid{display:grid}.hidden{display:none}.h-52{height:13rem}.w-52{width:13rem}.w-full{width:100%}.max-w-6xl{max-width:72rem}.max-w-lg{max-width:32rem}.flex-1{flex:1 1 0%}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.flex-wrap{flex-wrap:wrap}.items-start{align-items:flex-start}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-4{gap:1rem}.gap-6{gap:1.5rem}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.self-center{align-self:center}.overflow-hidden{overflow:hidden}.rounded-2xl{border-radius:1rem}.rounded-3xl{border-radius:1.5rem}.rounded-xl{border-radius:0.75rem}.border{border-width:1px}.border-8{border-width:8px}.border-b{border-bottom-width:1px}.border-b-4{border-bottom-width:4px}.border-t{border-top-width:1px}.border-\[\#8d5524\]{--tw-border-opacity:1;border-color:rgb(141 85 36 / var(--tw-border-opacity, 1))}.border-\[\#d4b89e\]{--tw-border-opacity:1;border-color:rgb(212 184 158 / var(--tw-border-opacity, 1))}.border-\[\#f5e8d3\]{--tw-border-opacity:1;border-color:rgb(245 232 211 / var(--tw-border-opacity, 1))}.bg-\[\#5c4033\]{--tw-bg-opacity:1;background-color:rgb(92 64 51 / var(--tw-bg-opacity, 1))}.bg-\[\#6b5c4a\]{--tw-bg-opacity:1;background-color:rgb(107 92 74 / var(--tw-bg-opacity, 1))}.bg-\[\#8d5524\]{--tw-bg-opacity:1;background-color:rgb(141 85 36 / var(--tw-bg-opacity, 1))}.bg-amber-600{--tw-bg-opacity:1;background-color:rgb(217 119 6 / var(--tw-bg-opacity, 1))}.bg-black\/70{background-color:rgb(0 0 0 / 0.7)}.bg-emerald-700{--tw-bg-opacity:1;background-color:rgb(4 120 87 / var(--tw-bg-opacity, 1))}.bg-gray-100{--tw-bg-opacity:1;background-color:rgb(243 244 246 / var(--tw-bg-opacity, 1))}.bg-gray-200{--tw-bg-opacity:1;background-color:rgb(229 231 235 / var(--tw-bg-opacity, 1))}.bg-green-700{--tw-bg-opacity:1;background-color:rgb(21 128 61 / var(--tw-bg-opacity, 1))}.bg-indigo-700{--tw-bg-opacity:1;background-color:rgb(67 56 202 / var(--tw-bg-opacity, 1))}.bg-red-700{--tw-bg-opacity:1;background-color:rgb(185 28 28 / var(--tw-bg-opacity, 1))}.bg-teal-700{--tw-bg-opacity:1;background-color:rgb(15 118 110 / var(--tw-bg-opacity, 1))}.bg-violet-700{--tw-bg-opacity:1;background-color:rgb(109 40 217 / var(--tw-bg-opacity, 1))}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.p-4{padding:1rem}.p-6{padding:1.5rem}.p-8{padding:2rem}.p-5{padding:1.25rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.px-8{padding-left:2rem;padding-right:2rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pb-2{padding-bottom:0.5rem}.pt-6{padding-top:1.5rem}.pt-4{padding-top:1rem}.text-center{text-align:center}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-8xl{font-size:6rem;line-height:1}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-bold{font-weight:700}.italic{font-style:italic}.leading-none{line-height:1}.text-\[\#5c4033\]{--tw-text-opacity:1;color:rgb(92 64 51 / var(--tw-text-opacity, 1))}.text-\[\#6b5c4a\]{--tw-text-opacity:1;color:rgb(107 92 74 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-\[\#8d5524\]{--tw-text-opacity:1;color:rgb(141 85 36 / var(--tw-text-opacity, 1))}.text-gray-500{--tw-text-opacity:1;color:rgb(107 114 128 / var(--tw-text-opacity, 1))}.text-gray-600{--tw-text-opacity:1;color:rgb(75 85 99 / var(--tw-text-opacity, 1))}.shadow{--tw-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.hover\:bg-\[\#4e4136\]:hover{--tw-bg-opacity:1;background-color:rgb(78 65 54 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-800:hover{--tw-bg-opacity:1;background-color:rgb(6 95 70 / var(--tw-bg-opacity, 1))}.hover\:bg-teal-800:hover{--tw-bg-opacity:1;background-color:rgb(17 94 89 / var(--tw-bg-opacity, 1))}@media (min-width: 768px){.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}}@media (min-width: 1024px){.lg\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}}</style></head>
+<body>
+
+<div id="backBar" class="max-w-6xl mx-auto px-6 pt-6 hidden">
+  <button class="back-btn" onclick="location.hash=''">← Вернуться к общей семье</button>
+</div>
+
+<h1 class="title" id="mainTitle">Семейная летопись</h1>
+
+<div class="max-w-6xl mx-auto px-6" id="tabsWrapper">
+  <div class="flex flex-wrap gap-2 mb-8 border-b border-[#d4b89e] pb-2" id="tabsBar">
+    <button onclick="showTab('main')" class="tab-button px-6 py-3 font-bold active border-b-4 border-[#8d5524]" id="tab-main">👨‍👩‍👧 Наша Семья</button>
+    <button onclick="showTab('list')" class="tab-button px-6 py-3 font-bold" id="tab-list">📋 Все люди</button>
+    <button onclick="showTab('photos')" class="tab-button px-6 py-3 font-bold" id="tab-photos">📸 Семейные фото</button>
+    <div class="ml-auto flex items-center gap-2">
+<button onclick="saveChanges()" class="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-2.5 rounded-2xl font-bold">💾 Сохранить изменения</button>
+<button onclick="saveHtml()" class="bg-[#6b5c4a] hover:bg-[#4e4136] text-white px-3 py-1.5 rounded-xl text-xs font-bold">сохранить .html</button>
+</div>
+  </div>
+</div>
+
+<div class="max-w-6xl mx-auto px-6" id="contentContainer">
+  <div id="content-main" class="bg-white rounded-3xl shadow-2xl p-8">
+    <div id="treeContainer"></div>
+  </div>
+  <div id="content-list" class="hidden bg-white rounded-3xl shadow-2xl p-8">
+    <div class="flex justify-between mb-6">
+      <input type="text" id="search" placeholder="Поиск по имени..." class="flex-1 p-4 rounded-2xl border border-[#d4b89e]" onkeyup="filterList()">
+      <button onclick="addNewPerson()" class="ml-2 bg-[#8d5524] text-white px-6 rounded-2xl font-bold">+ Человека</button>
+    </div>
+    <div id="peopleList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+  </div>
+  <div id="content-photos" class="hidden bg-white rounded-3xl shadow-2xl p-8">
+    <h3 class="text-3xl font-bold mb-6 text-center">Семейные фотографии</h3>
+    <button onclick="uploadFamilyPhoto()" class="mb-8 bg-[#8d5524] text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2 mx-auto">
+      <i class="fas fa-upload"></i> Загрузить фото / документ / медаль
+    </button>
+    <div class="flex flex-wrap justify-center gap-2 mb-4">
+      <span class="text-sm font-bold self-center mr-2 text-[#6b5c4a]">Сортировка:</span>
+      <button onclick="setPhotoSort('none')" id="sortBtn-none" class="photo-sort-btn active">Без сортировки</button>
+      <button onclick="setPhotoSort('date')" id="sortBtn-date" class="photo-sort-btn">📅 По дате</button>
+      <button onclick="setPhotoSort('event')" id="sortBtn-event" class="photo-sort-btn">🎉 По событию</button>
+      <button onclick="setPhotoSort('kind')" id="sortBtn-kind" class="photo-sort-btn">🏷 По виду</button>
+    </div>
+    <div class="flex flex-wrap justify-center gap-2 mb-8">
+      <span class="text-sm font-bold self-center mr-2 text-[#6b5c4a]">Фильтр:</span>
+      <button onclick="setPhotoFilter('all')" id="filterBtn-all" class="photo-filter-btn active">Все</button>
+      <button onclick="setPhotoFilter('Фото')" id="filterBtn-Фото" class="photo-filter-btn">📷 Фото</button>
+      <button onclick="setPhotoFilter('Документ')" id="filterBtn-Документ" class="photo-filter-btn">📄 Документы</button>
+      <button onclick="setPhotoFilter('Медаль')" id="filterBtn-Медаль" class="photo-filter-btn">🎖 Медали</button>
+      <button onclick="setPhotoFilter('Другое')" id="filterBtn-Другое" class="photo-filter-btn">📦 Другое</button>
+    </div>
+    <div id="photoGallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+  </div>
+</div>
+
+<div id="modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-3xl max-w-lg w-full mx-4 shadow-2xl overflow-hidden">
+    <div class="bg-[#5c4033] text-white p-6 flex justify-between items-center">
+      <h3 id="modalName" class="text-2xl font-bold">Александр Захаров</h3>
+      <button onclick="closeModal()" class="text-4xl leading-none">×</button>
+    </div>
+    <div class="p-8">
+      <div class="relative w-52 h-52 mx-auto mb-6">
+        <div id="modalPhoto" class="w-52 h-52 rounded-3xl flex items-center justify-center text-8xl border-8 border-[#f5e8d3] overflow-hidden bg-gray-100"><span class="text-8xl">👨</span></div>
+        <button onclick="document.getElementById('photoUpload').click()" class="absolute bottom-3 right-3 bg-white text-[#5c4033] px-5 py-2 rounded-2xl text-sm shadow">📷 Загрузить</button>
+        <input type="file" id="photoUpload" accept="image/*" class="hidden" onchange="uploadPersonPhoto(event)">
+      </div>
+      <div id="modalInfo" class="space-y-4">
+    <p><strong>Годы жизни:</strong> 31.08.1966</p>
+    <p><strong>Биография:</strong> Муж Татьяны.</p>
+    <p><strong>Статус связи:</strong> муж</p>
+    <p class="pt-4 border-t"><strong>Супруг(и)/партнёр(ы):</strong> <a onclick="closeModal(); setTimeout(()=&gt;showPerson(8),200)" class="spouse-link">Татьяна Захарова (Рабина) 💍</a></p>
+  </div>
+    </div>
+    <div class="p-6 border-t grid grid-cols-3 gap-3">
+      <button onclick="editCurrentPerson()" class="bg-[#8d5524] text-white py-4 rounded-2xl font-bold">✏️</button>
+      <button onclick="addChildToCurrent()" class="bg-green-700 text-white py-4 rounded-2xl font-bold">➕ Ребёнка</button>
+      <button onclick="addPartnerToCurrent()" class="bg-violet-700 text-white py-4 rounded-2xl font-bold">💑 Партнёра</button>
+      <button onclick="addRelativeToCurrent()" class="col-span-3 bg-[#6b5c4a] text-white py-3 rounded-2xl font-bold">➕ Добавить родственника</button>
+      <button onclick="changeRelationStatus()" class="col-span-3 bg-amber-600 text-white py-3 rounded-2xl font-bold">Изменить статус связи</button>
+      <button onclick="deleteCurrentPerson()" class="bg-red-700 text-white py-4 rounded-2xl font-bold">🗑 Удалить</button>
+      <button onclick="openSpouseCard()" id="spouseBtn" class="col-span-3 bg-teal-700 text-white py-3 rounded-2xl font-bold">👥 Открыть супруга/партнёра</button>
+      <button onclick="openOwnFamilyTree()" id="ownTreeBtn" class="col-span-3 bg-indigo-700 text-white py-3 rounded-2xl font-bold hidden">🌳 Открыть древо: Александр Захаров</button>
+      <button onclick="closeModal()" class="col-span-3 bg-gray-200 py-3 rounded-2xl font-bold">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA_VERSION = 'v29';
+const STORAGE_KEY = 'ivasik_family_data_' + DATA_VERSION;
+const FOUNDER_IDS = [0, 1];
+
+/* ================== ДАННЫЕ ================== */
+let family = [{"id":0,"name":"Ольга Павловна Коновка","years":"16.11.1916 — 19.09.1973","info":"В браке со Степаном Михайловичем Ивасик.","photo":"👵","photoData":"","parentId":null,"parentId2":null,"spouseIds":[1],"side":"main","relationType":"прародительница","familyGroup":"main","palette":0},{"id":1,"name":"Степан Михайлович Ивасик","years":"25.01.1909 — 12.07.1969","info":"Муж Ольги.","photo":"👴","photoData":"","parentId":null,"parentId2":null,"spouseIds":[0],"side":"spouse","relationType":"муж","familyGroup":"main","palette":0},{"id":2,"name":"Евгения Степановна Рабина (Ивасик)","years":"06.01.1938 — 17.02.2026","info":"В браке с Владимиром Рабиным.","photo":"👵","photoData":"","parentId":0,"parentId2":1,"spouseIds":[31],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":31,"name":"Владимир Михайлович Рабин","years":"07.12.1931 — 07.06.2001","info":"Муж Евгении.","photo":"👴","photoData":"","parentId":null,"parentId2":null,"spouseIds":[2],"side":"spouse","relationType":"муж","familyGroup":"main","palette":1},{"id":3,"name":"Елена Степановна Тележинська (Ивасик)","years":"19.05.1939","info":"1-й — Павел, 2-й — Станислав.","photo":"👵","photoData":"","parentId":0,"parentId2":1,"spouseIds":[323,331],"side":"main","relationType":"дочь","familyGroup":"main","palette":2},{"id":323,"name":"Павел (1-й мужчина Елены)","years":"","info":"Отец Людмилы.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[3],"side":"spouse","relationType":"партнёр","familyGroup":"main","palette":2},{"id":331,"name":"Станислав Тележинський","years":"","info":"2-й мужчина Елены.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[3],"side":"spouse","relationType":"партнёр","familyGroup":"main","palette":2},{"id":4,"name":"Владимир Степанович Ивасик","years":"24.06.1941 — 05.06.2011","info":"","photo":"👴","photoData":"","parentId":0,"parentId2":1,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":3},{"id":5,"name":"Любовь Степановна Ивасик","years":"19.07.1944 — 06.12.2013","info":"Дети от Ивана Ивасик.","photo":"👵","photoData":"","parentId":0,"parentId2":1,"spouseIds":[32],"side":"main","relationType":"дочь","familyGroup":"main","palette":4},{"id":32,"name":"Иван Ивасик","years":"","info":"Муж Любови.","photo":"👴","photoData":"","parentId":null,"parentId2":null,"spouseIds":[5],"side":"spouse","relationType":"муж","familyGroup":"main","palette":4},{"id":6,"name":"Мария Степановна Олияр (Ивасик)","years":"16.11.1946 — 03.11.2021","info":"Дочь-близнец. Муж — Михаил Олияр.","photo":"👵","photoData":"","parentId":0,"parentId2":1,"spouseIds":[33],"side":"main","relationType":"дочь","familyGroup":"main","palette":5},{"id":33,"name":"Михаил Олияр","years":"","info":"Муж Марии.","photo":"👴","photoData":"","parentId":null,"parentId2":null,"spouseIds":[6],"side":"spouse","relationType":"муж","familyGroup":"main","palette":5},{"id":7,"name":"Иван Степанович Ивасик","years":"16.11.1946 — 23.02.2021","info":"Сын-близнец. Жена — Юлия.","photo":"👴","photoData":"","parentId":0,"parentId2":1,"spouseIds":[34],"side":"main","relationType":"сын","familyGroup":"main","palette":6},{"id":34,"name":"Юлия Ивасик","years":"","info":"Жена Ивана.","photo":"👵","photoData":"","parentId":null,"parentId2":null,"spouseIds":[7],"side":"spouse","relationType":"жена","familyGroup":"main","palette":6},{"id":8,"name":"Татьяна Захарова (Рабина)","years":"20.04.1967 — 07.03.2025","info":"Муж — Александр Захаров.","photo":"👩","photoData":"","parentId":2,"parentId2":31,"spouseIds":[35],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":35,"name":"Александр Захаров","years":"31.08.1966","info":"Муж Татьяны.","photo":"👨","photoData":"","parentId":361,"parentId2":null,"spouseIds":[8],"side":"spouse","relationType":"муж","familyGroup":"main","palette":1},{"id":9,"name":"Валентин Рабин","years":"04.07.1969","info":"1-й брак — Светлана Крыпак. 2-й брак — Виктория Музалева.","photo":"👨","photoData":"","parentId":2,"parentId2":31,"spouseIds":[310,316],"side":"main","relationType":"сын","familyGroup":"main","palette":1},{"id":310,"name":"Светлана Викторовна Крыпак","years":"24.09.1968","info":"1-я жена Валентина.","photo":"👩","photoData":"","parentId":null,"parentId2":null,"spouseIds":[9],"side":"spouse","relationType":"1-я жена","familyGroup":"main","palette":1},{"id":316,"name":"Виктория Музалева","years":"20.02.1982","info":"2-я жена Валентина.","photo":"👩","photoData":"","parentId":null,"parentId2":null,"spouseIds":[9],"side":"spouse","relationType":"2-я жена","familyGroup":"main","palette":1},{"id":10,"name":"Ольга Владимировна Рабина","years":"17.03.1973","info":"Двое дочерей от Николая Кузнецова.","photo":"👩","photoData":"","parentId":2,"parentId2":31,"spouseIds":[36],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":36,"name":"Николай Кузнецов","years":"31.05.1982","info":"Партнёр Ольги Рабиной.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[10],"side":"spouse","relationType":"партнёр","familyGroup":"main","palette":1},{"id":11,"name":"Нина Герасименко (Захарова)","years":"17.01.1991","info":"Муж — Денис Герасименко.","photo":"👩","photoData":"","parentId":8,"parentId2":35,"spouseIds":[37],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":37,"name":"Денис Герасименко","years":"02.10.1995","info":"Муж Нины.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[11],"side":"spouse","relationType":"муж","familyGroup":"main","palette":1},{"id":15,"name":"Дарина Герасименко","years":"22.12.2018","info":"","photo":"👧","photoData":"","parentId":11,"parentId2":37,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":16,"name":"Мелисса Герасименко","years":"31.03.2021","info":"","photo":"👧","photoData":"","parentId":11,"parentId2":37,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":17,"name":"Мира Герасименко","years":"31.05.2025","info":"","photo":"👧","photoData":"","parentId":11,"parentId2":37,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":12,"name":"Евгений Рабин","years":"08.07.1988","info":"Сын Валентина и Светланы. Жена — Ольга.","photo":"👦","photoData":"","parentId":9,"parentId2":310,"spouseIds":[311],"side":"main","relationType":"сын","familyGroup":"main","palette":1},{"id":311,"name":"Ольга Рабина","years":"17.06.1987","info":"Жена Евгения.","photo":"👩","photoData":"","parentId":null,"parentId2":null,"spouseIds":[12],"side":"spouse","relationType":"жена","familyGroup":"main","palette":1},{"id":312,"name":"Егор Рабин","years":"04.01.2021","info":"Сын Евгения и Ольги.","photo":"👦","photoData":"","parentId":12,"parentId2":311,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":1},{"id":13,"name":"Марина Ступакова (Рабина)","years":"","info":"Дочь Валентина и Светланы. Муж — Сергей Ступаков.","photo":"👩","photoData":"","parentId":9,"parentId2":310,"spouseIds":[313],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":313,"name":"Сергей Ступаков","years":"04.05.1982","info":"Муж Марины.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[13],"side":"spouse","relationType":"муж","familyGroup":"main","palette":1},{"id":314,"name":"Арина Ступакова","years":"27.09.2015","info":"","photo":"👧","photoData":"","parentId":13,"parentId2":313,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":315,"name":"Максим Ступаков","years":"12.01.2023","info":"","photo":"👦","photoData":"","parentId":13,"parentId2":313,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":1},{"id":317,"name":"Владимир Рабин","years":"06.01.2015","info":"Сын Валентина и Виктории.","photo":"👦","photoData":"","parentId":9,"parentId2":316,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":1},{"id":318,"name":"Ольга Строева (Музалева)","years":"26.03.2002","info":"Дочь Валентина и Виктории. Муж — Андрей Строев.","photo":"👩","photoData":"","parentId":9,"parentId2":316,"spouseIds":[319],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":319,"name":"Андрей Строев","years":"","info":"Муж Ольги Строевой.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[318],"side":"spouse","relationType":"муж","familyGroup":"main","palette":1},{"id":320,"name":"Татьяна Рабина","years":"26.01.2008","info":"Дочь Ольги Рабиной и Николая Кузнецова.","photo":"👧","photoData":"","parentId":10,"parentId2":36,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":321,"name":"Анна Басакина (Кузнецова)","years":"15.12.2005","info":"Дочь Ольги Рабиной и Николая Кузнецова. Муж — Сергей Басакин.","photo":"👩","photoData":"","parentId":10,"parentId2":36,"spouseIds":[322],"side":"main","relationType":"дочь","familyGroup":"main","palette":1},{"id":322,"name":"Сергей Басакин","years":"13.03.2003","info":"Муж Анны.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[321],"side":"spouse","relationType":"муж","familyGroup":"main","palette":1},{"id":324,"name":"Людмила Кохи (Ивасик)","years":"03.07.1967","info":"Дочь Елены и Павла. Муж — Манан Кохи.","photo":"👩","photoData":"","parentId":3,"parentId2":323,"spouseIds":[325],"side":"main","relationType":"дочь","familyGroup":"main","palette":2},{"id":325,"name":"Манан Кохи","years":"","info":"Муж Людмилы.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[324],"side":"spouse","relationType":"муж","familyGroup":"main","palette":2},{"id":326,"name":"Сияр Кохи","years":"27.08.1989","info":"Жена — Заския.","photo":"👨","photoData":"","parentId":324,"parentId2":325,"spouseIds":[327],"side":"main","relationType":"сын","familyGroup":"main","palette":2},{"id":327,"name":"Заския","years":"","info":"Жена Сияра.","photo":"👩","photoData":"","parentId":null,"parentId2":null,"spouseIds":[326],"side":"spouse","relationType":"жена","familyGroup":"main","palette":2},{"id":328,"name":"Милена-Мария","years":"14.12.2018","info":"","photo":"👧","photoData":"","parentId":326,"parentId2":327,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":2},{"id":329,"name":"Скандер","years":"28.07.2022","info":"","photo":"👦","photoData":"","parentId":326,"parentId2":327,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":2},{"id":330,"name":"Диана Кохи","years":"2006","info":"","photo":"👧","photoData":"","parentId":324,"parentId2":325,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":2},{"id":332,"name":"Валерий Тележинський","years":"21.02.1974","info":"Сын Елены и Станислава. Детей нет.","photo":"👨","photoData":"","parentId":3,"parentId2":331,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":2},{"id":333,"name":"Юлия Морозова (Ивасик)","years":"","info":"Дочь Владимира Ивасика.","photo":"👩","photoData":"","parentId":4,"parentId2":null,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":3},{"id":334,"name":"Николай Морозов","years":"~1993","info":"Сын Юлии.","photo":"👦","photoData":"","parentId":333,"parentId2":null,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":3},{"id":335,"name":"Таисия Владимировна Тарот (Ивасик)","years":"16.11.1973","info":"Дочь Владимира Ивасика.","photo":"👩","photoData":"","parentId":4,"parentId2":null,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":3},{"id":336,"name":"Тамила","years":"~1993","info":"Дочь Таисии.","photo":"👩","photoData":"","parentId":335,"parentId2":null,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":3},{"id":337,"name":"Каролина","years":"~2024","info":"Дочь Тамилы.","photo":"👧","photoData":"","parentId":336,"parentId2":null,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":3},{"id":338,"name":"Анатолий Ивасик","years":"26.01.1961 — ум.","info":"","photo":"👨","photoData":"","parentId":5,"parentId2":32,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":4},{"id":339,"name":"Любовь Ивасик","years":"1988","info":"Ушла в монастырь в Черногории.","photo":"👩","photoData":"","parentId":338,"parentId2":null,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":4},{"id":340,"name":"Лариса Трохименко (Ивасик)","years":"03.05.1963","info":"Муж — Василий Трохименко.","photo":"👩","photoData":"","parentId":5,"parentId2":32,"spouseIds":[341],"side":"main","relationType":"дочь","familyGroup":"main","palette":4},{"id":341,"name":"Василий Трохименко","years":"","info":"Муж Ларисы.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[340],"side":"spouse","relationType":"муж","familyGroup":"main","palette":4},{"id":342,"name":"Иван Трохименко","years":"24.05.1981","info":"Жена — Екатерина.","photo":"👨","photoData":"","parentId":340,"parentId2":341,"spouseIds":[343],"side":"main","relationType":"сын","familyGroup":"main","palette":4},{"id":343,"name":"Екатерина Трохименко","years":"","info":"Жена Ивана.","photo":"👩","photoData":"","parentId":null,"parentId2":null,"spouseIds":[342],"side":"spouse","relationType":"жена","familyGroup":"main","palette":4},{"id":344,"name":"Алексей Трохименко","years":"08.2005","info":"","photo":"👦","photoData":"","parentId":342,"parentId2":343,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":4},{"id":345,"name":"Оксана Трохименко","years":"~2010","info":"","photo":"👧","photoData":"","parentId":342,"parentId2":343,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":4},{"id":346,"name":"Марина Трохименко","years":"18.09.1988","info":"","photo":"👩","photoData":"","parentId":340,"parentId2":341,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":4},{"id":347,"name":"Стефания","years":"~2023","info":"Дочь Марины.","photo":"👧","photoData":"","parentId":346,"parentId2":null,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":4},{"id":348,"name":"Галина Трум (Олияр)","years":"07.11.1967","info":"Муж — Виталий Трум.","photo":"👩","photoData":"","parentId":6,"parentId2":33,"spouseIds":[349],"side":"main","relationType":"дочь","familyGroup":"main","palette":5},{"id":349,"name":"Виталий Трум","years":"","info":"Муж Галины.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[348],"side":"spouse","relationType":"муж","familyGroup":"main","palette":5},{"id":350,"name":"Виталий Трум мл.","years":"11.1987","info":"Живёт в Киеве.","photo":"👨","photoData":"","parentId":348,"parentId2":349,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":5},{"id":351,"name":"Виктория Трум","years":"04.01.2010-2012","info":"","photo":"👧","photoData":"","parentId":350,"parentId2":null,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":5},{"id":352,"name":"Владислав Трум","years":"17.09.1993-1994","info":"Женат.","photo":"👨","photoData":"","parentId":348,"parentId2":349,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":5},{"id":353,"name":"Наталья Матвейчук (Олияр)","years":"26.01.1973","info":"","photo":"👩","photoData":"","parentId":6,"parentId2":33,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":5},{"id":354,"name":"Мария","years":"~21.09.2000","info":"Дочь Натальи.","photo":"👧","photoData":"","parentId":353,"parentId2":null,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":5},{"id":355,"name":"Николай","years":"28.11.2005","info":"Сын Натальи.","photo":"👦","photoData":"","parentId":353,"parentId2":null,"spouseIds":[],"side":"main","relationType":"сын","familyGroup":"main","palette":5},{"id":356,"name":"Виктор Ивасик","years":"24.06.1973","info":"Жена — Алена.","photo":"👨","photoData":"","parentId":7,"parentId2":34,"spouseIds":[357],"side":"main","relationType":"сын","familyGroup":"main","palette":6},{"id":357,"name":"Алена Ивасик","years":"","info":"Жена Виктора.","photo":"👩","photoData":"","parentId":null,"parentId2":null,"spouseIds":[356],"side":"spouse","relationType":"жена","familyGroup":"main","palette":6},{"id":358,"name":"Юля Ивасик","years":"~2000","info":"","photo":"👧","photoData":"","parentId":356,"parentId2":357,"spouseIds":[],"side":"main","relationType":"дочь","familyGroup":"main","palette":6},{"id":359,"name":"Валентина Продан (Ивасик)","years":"","info":"Муж — Леонид Продан, детей нет.","photo":"👩","photoData":"","parentId":7,"parentId2":34,"spouseIds":[360],"side":"main","relationType":"дочь","familyGroup":"main","palette":6},{"id":360,"name":"Леонид Продан","years":"02.10.1965","info":"Муж Валентины.","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[359],"side":"spouse","relationType":"муж","familyGroup":"main","palette":6},{"id":361,"name":"александр никитич","years":"1900-1991","info":"отец Александр Захаров","photo":"👨","photoData":"","parentId":null,"parentId2":null,"spouseIds":[],"side":"main","relationType":"отец","familyGroup":"main","palette":1,"treeOwnerId":35}];
+
+let familyPhotos = [];
+let personalTreePhotos = {};
+
+let currentEditId = null;
+let currentTab = "main";
+let viewMode = 'full';
+let currentOwnerId = null;
+const protectedIds = [0, 1];
+let currentPhotoSort = 'none';
+let currentPhotoFilter = 'all';
+let currentPersonalSort = 'none';
+let currentPersonalFilter = 'all';
+
+let treeZoom = 1, treePanX = 20, treePanY = 20;
+let isDragging = false, dragMoved = false;
+let dragStartX = 0, dragStartY = 0, startPanX = 0, startPanY = 0;
+let treeViewKey = '';
+
+/* ================== БАЗА ================== */
+function getPerson(id) { return family.find(p => p.id === id); }
+function getSpouses(person) {
+  if (!person || !Array.isArray(person.spouseIds)) return [];
+  return person.spouseIds.map(getPerson).filter(Boolean);
+}
+function isPartner(person) { return person && /партн|мужчин/i.test(person.relationType || ""); }
+function canHavePersonalTree(person) { return person && person.side === "spouse"; }
+
+function migrate() {
+  family.forEach(p => {
+    if (!Array.isArray(p.spouseIds)) p.spouseIds = [];
+    p.spouseIds = [...new Set(p.spouseIds)];
+    if (!('parentId2' in p)) p.parentId2 = null;
+    if (!('side' in p)) p.side = "main";
+    if (typeof p.palette !== "number") p.palette = 1;
+  });
+  family.forEach(p => {
+    p.spouseIds.forEach(sid => {
+      const s = getPerson(sid);
+      if (s && !Array.isArray(s.spouseIds)) s.spouseIds = [];
+      if (s && !s.spouseIds.includes(p.id)) s.spouseIds.push(p.id);
+    });
+  });
+  if (!personalTreePhotos || typeof personalTreePhotos !== 'object') personalTreePhotos = {};
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      family, familyPhotos, personalTreePhotos,
+      currentPhotoSort, currentPhotoFilter
+    }));
+  } catch(e) { console.warn(e); }
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (Array.isArray(d.family) && d.family.length) {
+      family = d.family;
+      familyPhotos = Array.isArray(d.familyPhotos) ? d.familyPhotos : [];
+      personalTreePhotos = (d.personalTreePhotos && typeof d.personalTreePhotos === 'object') ? d.personalTreePhotos : {};
+      if (d.currentPhotoSort) currentPhotoSort = d.currentPhotoSort;
+      if (d.currentPhotoFilter) currentPhotoFilter = d.currentPhotoFilter;
+      migrate();
+      return true;
+    }
+  } catch(e) { console.warn(e); }
+  return false;
+}
+
+/* ================== ДЕРЕВО ================== */
+function buildChildrenMap(members) {
+  const ids = new Set(members.map(m => m.id));
+  const map = new Map();
+  members.forEach(m => map.set(m.id, []));
+  members.forEach(p => {
+    if (p.parentId !== null && p.parentId !== undefined && ids.has(p.parentId)) {
+      map.get(p.parentId).push(p);
+    }
+  });
+  return map;
+}
+function findRoots(members) {
+  const ids = new Set(members.map(m => m.id));
+  return members.filter(p => p.parentId === null || p.parentId === undefined || !ids.has(p.parentId));
+}
+function groupChildrenBySecondParent(children) {
+  const groups = new Map();
+  children.forEach(ch => {
+    const key = ch.parentId2 !== null && ch.parentId2 !== undefined ? ch.parentId2 : "__none__";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(ch);
+  });
+  return groups;
+}
+
+function renderTree() {
+  const container = document.getElementById("treeContainer");
+  container.innerHTML = "";
+
+  const members = family.filter(p => p.side === "main");
+  if (members.length === 0) {
+    container.innerHTML = `<p class="text-center text-gray-500">Нет данных</p>`;
+    return;
+  }
+  const roots = findRoots(members);
+  const childrenMap = buildChildrenMap(members);
+  const rendered = new Set();
+
+  const { vp, canvas } = createTreeViewport();
+  const treeDiv = document.createElement("div");
+  treeDiv.className = "tree";
+  const rootUl = document.createElement("ul");
+  roots.forEach(root => {
+    if (rendered.has(root.id)) return;
+    renderPersonBranch(root, rootUl, childrenMap, rendered);
+  });
+  treeDiv.appendChild(rootUl);
+  canvas.appendChild(treeDiv);
+  container.appendChild(vp);
+  fitTreeView();
+}
+
+function renderPersonBranch(person, parentUl, childrenMap, rendered) {
+  if (rendered.has(person.id)) return;
+  rendered.add(person.id);
+
+  const li = document.createElement("li");
+  const wrapper = document.createElement("div");
+  wrapper.className = "node-wrapper";
+
+  const spouses = getSpouses(person);
+  const palette = person.palette || 1;
+
+  if (spouses.length === 0) {
+    wrapper.appendChild(makeNode(person, true, palette));
+  } else if (spouses.length === 1) {
+    wrapper.appendChild(makeNode(person, true, palette));
+    wrapper.appendChild(makeCoupleLink());
+    wrapper.appendChild(makeNode(spouses[0], false, palette));
+  } else {
+    wrapper.appendChild(makeNode(spouses[0], false, palette));
+    wrapper.appendChild(makeCoupleLink());
+    wrapper.appendChild(makeNode(person, true, palette));
+    for (let i = 1; i < spouses.length; i++) {
+      wrapper.appendChild(makeCoupleLink());
+      wrapper.appendChild(makeNode(spouses[i], false, palette));
+    }
+  }
+  li.appendChild(wrapper);
+
+  const children = (childrenMap.get(person.id) || []).filter(ch => !rendered.has(ch.id));
+  if (children.length > 0) {
+    const groups = groupChildrenBySecondParent(children);
+    if (groups.size === 1) {
+      const ul = document.createElement("ul");
+      [...groups.values()][0].forEach(ch => renderPersonBranch(ch, ul, childrenMap, rendered));
+      li.appendChild(ul);
+    } else {
+      const pairWrap = document.createElement("div");
+      pairWrap.style.display = "flex";
+      pairWrap.style.justifyContent = "center";
+      pairWrap.style.alignItems = "flex-start";
+      pairWrap.style.gap = "20px";
+      pairWrap.style.paddingTop = "28px";
+      pairWrap.style.position = "relative";
+      const stem = document.createElement("div");
+      stem.style.position = "absolute";
+      stem.style.top = "0"; stem.style.left = "50%";
+      stem.style.borderLeft = "2px solid #8d5524";
+      stem.style.height = "28px";
+      pairWrap.appendChild(stem);
+      groups.forEach(kids => {
+        const col = document.createElement("div");
+        col.className = "pair-children";
+        const ul = document.createElement("ul");
+        ul.style.paddingTop = "0";
+        kids.forEach(ch => renderPersonBranch(ch, ul, childrenMap, rendered));
+        col.appendChild(ul);
+        pairWrap.appendChild(col);
+      });
+      li.appendChild(pairWrap);
+    }
+  }
+  parentUl.appendChild(li);
+}
+
+function makeNode(person, isMain, palette) {
+  const div = document.createElement("div");
+  const pal = typeof palette === "number" ? palette : (person.palette || 1);
+  div.className = "tree-node palette-" + pal + " " + (isMain ? "is-main" : "is-spouse");
+  div.onclick = (e) => { e.stopPropagation(); showPerson(person.id); };
+
+  const photoHtml = person.photoData
+    ? `<img src="${person.photoData}" class="node-photo" alt="${person.name}">`
+    : `<div class="node-photo-emoji">${person.photo || '👤'}</div>`;
+
+  div.innerHTML = `
+    ${photoHtml}
+    <div class="node-name">${person.name}</div>
+    ${person.years ? `<div class="node-years">${person.years}</div>` : ''}
+  `;
+  return div;
+}
+
+function makeCoupleLink() {
+  const link = document.createElement("div");
+  link.className = "couple-link";
+  return link;
+}
+
+/* ================== ДРЕВО ДОБАВОЧНОГО СУПРУГА ==================
+   Собираем всё, что связано с родом супруга(ов) владельца:
+   - самого владельца,
+   - всех его супругов/партнёров,
+   - ВСЕХ потомков каждого супруга (включая детей от других браков),
+   - супругов этих потомков.
+*/
+function getPersonalTreeMembers(ownerId) {
+  const owner = getPerson(ownerId);
+  if (!owner) return [];
+
+  const included = new Set();
+  const queue = [];
+
+  // 1. Владелец
+  included.add(owner.id);
+  queue.push(owner.id);
+
+  // 2. Все его супруги/партнёры
+  const ownerSpouses = getSpouses(owner);
+  ownerSpouses.forEach(s => {
+    if (!included.has(s.id)) {
+      included.add(s.id);
+      queue.push(s.id);
+    }
+  });
+
+  // 3. Обходим в ширину: от каждого узла берём всех его потомков,
+  //    добавляем их и их супругов, ставим в очередь.
+  const queued = new Set(queue);
+  while (queue.length > 0) {
+    const pid = queue.shift();
+    family.forEach(ch => {
+      // Ребёнок, если pid — один из его родителей
+      if (ch.parentId !== pid && ch.parentId2 !== pid) return;
+      if (included.has(ch.id)) return;
+
+      included.add(ch.id);
+      if (!queued.has(ch.id)) { queued.add(ch.id); queue.push(ch.id); }
+
+      // Подтягиваем супругов этого потомка
+      getSpouses(ch).forEach(sp => {
+        if (!included.has(sp.id)) {
+          included.add(sp.id);
+          if (!queued.has(sp.id)) { queued.add(sp.id); queue.push(sp.id); }
+        }
+      });
+    });
+  }
+
+  return [...included].map(getPerson).filter(Boolean);
+}
+
+function goToPersonalTree(ownerId) { location.hash = 'tree_' + ownerId; }
+
+function renderPersonalTree(ownerId) {
+  const tw = document.getElementById("tabsWrapper");
+  if (tw) tw.classList.add("hidden");
+  const lc = document.getElementById("content-list"); if (lc) lc.classList.add("hidden");
+  const pc = document.getElementById("content-photos"); if (pc) pc.classList.add("hidden");
+  const mc = document.getElementById("content-main"); if (mc) mc.classList.remove("hidden");
+  const bb = document.getElementById("backBar"); if (bb) bb.classList.remove("hidden");
+
+  const owner = getPerson(ownerId);
+  const title = document.getElementById("mainTitle");
+  if (title) title.textContent = owner ? "Древо: " + owner.name : "Древо";
+
+  const container = document.getElementById("treeContainer");
+  container.innerHTML = "";
+
+  const members = getPersonalTreeMembers(ownerId);
+  const childrenMap = buildChildrenMap(members);
+  const rendered = new Set();
+
+  const { vp, canvas } = createTreeViewport();
+  const treeDiv = document.createElement("div");
+  treeDiv.className = "tree";
+  const rootUl = document.createElement("ul");
+  if (owner) renderPersonBranch(owner, rootUl, childrenMap, rendered);
+  treeDiv.appendChild(rootUl);
+  canvas.appendChild(treeDiv);
+
+  const galleryWrap = document.createElement("div");
+  galleryWrap.className = "mt-6 flex justify-center";
+  galleryWrap.innerHTML = `<button onclick="openPersonalTreeGallery(${ownerId})"
+      class="bg-teal-700 hover:bg-teal-800 text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2">
+      📸 Галерея древа
+    </button>`;
+  container.appendChild(vp);
+  container.appendChild(galleryWrap);
+  fitTreeView();
+}
+
+/* ================== МОДАЛКА ЧЕЛОВЕКА ================== */
+function showPerson(id) {
+  currentEditId = id;
+  const p = getPerson(id);
+  if (!p) return;
+  const spouses = getSpouses(p);
+
+  document.getElementById("modalName").textContent = p.name;
+  const photoDiv = document.getElementById("modalPhoto");
+  photoDiv.innerHTML = p.photoData
+    ? `<img src="${p.photoData}" class="w-full h-full object-cover rounded-3xl">`
+    : `<span class="text-8xl">${p.photo || '👤'}</span>`;
+  const spouseList = spouses.length
+    ? spouses.map(s => `<a onclick="closeModal(); setTimeout(()=>showPerson(${s.id}),200)" class="spouse-link">${s.name}${isPartner(s) ? ' 💑' : ' 💍'}</a>`).join(', ')
+    : '';
+  document.getElementById("modalInfo").innerHTML = `
+    <p><strong>Годы жизни:</strong> ${p.years || '—'}</p>
+    <p><strong>Биография:</strong> ${p.info || '—'}</p>
+    <p><strong>Статус связи:</strong> ${p.relationType || '—'}</p>
+    ${spouseList ? `<p class="pt-4 border-t"><strong>Супруг(и)/партнёр(ы):</strong> ${spouseList}</p>` : ''}
+  `;
+  document.getElementById("spouseBtn").classList.toggle("hidden", spouses.length === 0);
+
+  const ownTreeBtn = document.getElementById("ownTreeBtn");
+  const alreadyHere = (viewMode === "personal" && currentOwnerId === id);
+  if (canHavePersonalTree(p) && !alreadyHere) {
+    ownTreeBtn.classList.remove("hidden");
+    ownTreeBtn.textContent = "🌳 Открыть древо: " + p.name;
+  } else {
+    ownTreeBtn.classList.add("hidden");
+  }
+
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+function openOwnFamilyTree() {
+  const p = getPerson(currentEditId);
+  if (!p || !canHavePersonalTree(p)) return;
+  closeModal();
+  goToPersonalTree(p.id);
+}
+function openSpouseCard() {
+  const p = getPerson(currentEditId);
+  const spouses = getSpouses(p);
+  if (spouses.length === 0) return;
+  if (spouses.length === 1) {
+    closeModal();
+    setTimeout(() => showPerson(spouses[0].id), 250);
+    return;
+  }
+  const prompt_text = "Кого открыть?\n" + spouses.map((s,i) => `${i+1}. ${s.name}`).join("\n");
+  const answer = prompt(prompt_text, "1");
+  const n = parseInt(answer, 10);
+  if (n >= 1 && n <= spouses.length) {
+    const targetId = spouses[n-1].id;
+    closeModal();
+    setTimeout(() => showPerson(targetId), 250);
+  }
+}
+
+function uploadPersonPhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    getPerson(currentEditId).photoData = ev.target.result;
+    showPerson(currentEditId);
+    renderAll();
+  };
+  reader.readAsDataURL(file);
+}
+
+function changeRelationStatus() {
+  const p = getPerson(currentEditId);
+  const status = prompt("Новый статус:", p.relationType || "");
+  if (status !== null) { p.relationType = status; saveState(); showPerson(currentEditId); }
+}
+function closeModal() { document.getElementById("modal").classList.add("hidden"); }
+function editCurrentPerson() {
+  const p = getPerson(currentEditId);
+  const name = prompt("Имя:", p.name); if (name === null) return;
+  const years = prompt("Годы жизни:", p.years); if (years === null) return;
+  const info = prompt("Биография:", p.info); if (info === null) return;
+  p.name = name; p.years = years; p.info = info;
+  showPerson(p.id);
+  renderAll();
+}
+
+/* ================== ГАЛЕРЕЯ ДРЕВА ================== */
+function openPersonalTreeGallery(ownerId) {
+  currentOwnerId = ownerId;
+  const owner = getPerson(ownerId);
+  if (!owner) return;
+  viewMode = 'personal';
+  const title = document.getElementById("mainTitle");
+  if (title) title.textContent = "Древо: " + owner.name + " — галерея";
+
+  const mc = document.getElementById("content-main"); if (mc) mc.classList.add("hidden");
+  const lc = document.getElementById("content-list"); if (lc) lc.classList.add("hidden");
+  const pc = document.getElementById("content-photos"); if (pc) pc.classList.add("hidden");
+
+  const container = document.getElementById("contentContainer");
+  let gal = document.getElementById("personalTreeGalleryPage");
+  if (gal) gal.remove();
+  gal = document.createElement("div");
+  gal.id = "personalTreeGalleryPage";
+  gal.className = "bg-white rounded-3xl shadow-2xl p-8";
+  gal.innerHTML = `
+    <h3 class="text-3xl font-bold mb-6 text-center">Галерея древа: ${owner.name}</h3>
+    <button onclick="uploadPersonalTreePhoto(${ownerId})"
+      class="mb-8 bg-[#8d5524] text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2 mx-auto">
+      <i class="fas fa-upload"></i> Загрузить фото / документ / медаль
+    </button>
+    <div class="flex flex-wrap justify-center gap-2 mb-4">
+      <span class="text-sm font-bold self-center mr-2 text-[#6b5c4a]">Сортировка:</span>
+      <button onclick="setPersonalSort('none')"  id="psortBtn-none"  class="photo-sort-btn">Без сортировки</button>
+      <button onclick="setPersonalSort('date')"  id="psortBtn-date"  class="photo-sort-btn">📅 По дате</button>
+      <button onclick="setPersonalSort('event')" id="psortBtn-event" class="photo-sort-btn">🎉 По событию</button>
+      <button onclick="setPersonalSort('kind')"  id="psortBtn-kind"  class="photo-sort-btn">🏷 По виду</button>
+    </div>
+    <div class="flex flex-wrap justify-center gap-2 mb-8">
+      <span class="text-sm font-bold self-center mr-2 text-[#6b5c4a]">Фильтр:</span>
+      <button onclick="setPersonalFilter('all')"      id="pfilterBtn-all"      class="photo-filter-btn">Все</button>
+      <button onclick="setPersonalFilter('Фото')"     id="pfilterBtn-Фото"     class="photo-filter-btn">📷 Фото</button>
+      <button onclick="setPersonalFilter('Документ')" id="pfilterBtn-Документ" class="photo-filter-btn">📄 Документы</button>
+      <button onclick="setPersonalFilter('Медаль')"   id="pfilterBtn-Медаль"   class="photo-filter-btn">🎖 Медали</button>
+      <button onclick="setPersonalFilter('Другое')"   id="pfilterBtn-Другое"   class="photo-filter-btn">📦 Другое</button>
+    </div>
+    <div id="personalTreeGallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    <div class="mt-8 text-center">
+      <button onclick="location.hash='tree_${ownerId}'" class="back-btn">← Вернуться к древу</button>
+    </div>
+  `;
+  container.appendChild(gal);
+  currentPersonalSort = 'none';
+  currentPersonalFilter = 'all';
+  renderPersonalTreeGallery();
+}
+
+function getPersonalTreePhotos(ownerId) {
+  if (!personalTreePhotos[ownerId]) personalTreePhotos[ownerId] = [];
+  return personalTreePhotos[ownerId];
+}
+function getSortedPersonalPhotos(ownerId) {
+  let arr = [...getPersonalTreePhotos(ownerId)];
+  if (currentPersonalSort === 'date')  arr.sort((a,b) => (a.date||"").localeCompare(b.date||""));
+  if (currentPersonalSort === 'event') arr.sort((a,b) => (a.event||"").localeCompare(b.event||""));
+  if (currentPersonalSort === 'kind')  arr.sort((a,b) => (a.kind||"Фото").localeCompare(b.kind||"Фото"));
+  if (currentPersonalFilter !== 'all') arr = arr.filter(p => (p.kind || "Фото") === currentPersonalFilter);
+  return arr;
+}
+function setPersonalSort(type) { currentPersonalSort = type; syncPersonalButtons(); renderPersonalTreeGallery(); }
+function setPersonalFilter(kind) { currentPersonalFilter = kind; syncPersonalButtons(); renderPersonalTreeGallery(); }
+function syncPersonalButtons() {
+  document.querySelectorAll('[id^="psortBtn-"]').forEach(b => b.classList.remove("active"));
+  const sBtn = document.getElementById("psortBtn-" + currentPersonalSort);
+  if (sBtn) sBtn.classList.add("active");
+  document.querySelectorAll('[id^="pfilterBtn-"]').forEach(b => b.classList.remove("active"));
+  const fBtn = document.getElementById("pfilterBtn-" + currentPersonalFilter);
+  if (fBtn) fBtn.classList.add("active");
+}
+
+function uploadPersonalTreePhoto(ownerId) {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = "image/*";
+  input.onchange = function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      const kindInput = prompt("Вид материала:\n1 — Фото\n2 — Документ\n3 — Медаль\n4 — Другое", "Фото");
+      const map = { "1": "Фото", "2": "Документ", "3": "Медаль", "4": "Другое" };
+      const kind = map[(kindInput || "").trim()] || (kindInput || "Фото").trim();
+      const date = prompt("Дата материала:", "");
+      const event = prompt("Событие / подпись:", "");
+      const people = prompt("Кто изображён / о ком:", "");
+      getPersonalTreePhotos(ownerId).push({
+        dataUrl: ev.target.result,
+        date: date || "Дата неизвестна",
+        event: event || "",
+        people: people || "",
+        kind: kind || "Фото"
+      });
+      renderPersonalTreeGallery();
+      saveState();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+function renderPersonalTreeGallery() {
+  const container = document.getElementById("personalTreeGallery");
+  if (!container) return;
+  container.innerHTML = "";
+  const arr = getSortedPersonalPhotos(currentOwnerId);
+  const photos = getPersonalTreePhotos(currentOwnerId);
+  if (arr.length === 0) {
+    container.innerHTML = `<p class="col-span-full text-center text-gray-500 italic py-8">Пока в галерее древа нет материалов. Загрузите первое фото, документ или медаль.</p>`;
+    return;
+  }
+  arr.forEach((photo) => {
+    const i = photos.indexOf(photo);
+    const div = document.createElement("div");
+    div.className = "photo-card bg-white border border-[#d4b89e] rounded-2xl overflow-hidden";
+    div.innerHTML = `
+      <img src="${photo.dataUrl}" class="w-full h-56 object-cover cursor-pointer" onclick="openPersonalTreeFullPhoto(${i})">
+      <div class="p-4">
+        ${kindBadge(photo.kind)}
+        <p class="text-xs text-gray-500">${photo.date}</p>
+        <p class="text-sm font-semibold">${photo.event}</p>
+        <p class="text-xs text-gray-600">${photo.people}</p>
+        <div class="flex gap-2 mt-4">
+          <button onclick="downloadPersonalTreePhoto(${i})" class="flex-1 bg-blue-600 text-white text-xs py-2 rounded-xl">Скачать</button>
+          <button onclick="editPersonalTreePhoto(${i})" class="flex-1 bg-amber-600 text-white text-xs py-2 rounded-xl">Изменить</button>
+          <button onclick="deletePersonalTreePhoto(${i})" class="flex-1 bg-red-600 text-white text-xs py-2 rounded-xl">Удалить</button>
+        </div>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+function openPersonalTreeFullPhoto(i) {
+  const photo = getPersonalTreePhotos(currentOwnerId)[i];
+  const win = window.open();
+  win.document.write('<img src="' + photo.dataUrl + '" style="max-width:100%; height:auto;">');
+}
+function downloadPersonalTreePhoto(i) {
+  const photo = getPersonalTreePhotos(currentOwnerId)[i];
+  const a = document.createElement("a");
+  a.href = photo.dataUrl;
+  a.download = (photo.kind || "Фото") + "_" + (photo.date || "дата") + ".jpg";
+  a.click();
+}
+function deletePersonalTreePhoto(i) {
+  if (confirm("Удалить материал?")) {
+    getPersonalTreePhotos(currentOwnerId).splice(i, 1);
+    renderPersonalTreeGallery();
+    saveState();
+  }
+}
+function editPersonalTreePhoto(i) {
+  const p = getPersonalTreePhotos(currentOwnerId)[i];
+  const kind = prompt("Вид (Фото / Документ / Медаль / Другое):", p.kind || "Фото"); if (kind === null) return;
+  const date = prompt("Дата:", p.date || ""); if (date === null) return;
+  const event = prompt("Событие / подпись:", p.event || ""); if (event === null) return;
+  const people = prompt("Кто изображён / о ком:", p.people || ""); if (people === null) return;
+  p.kind = kind.trim() || "Фото"; p.date = date || "Дата неизвестна"; p.event = event; p.people = people;
+  renderPersonalTreeGallery();
+  saveState();
+}
+
+/* ================== ДОБАВЛЕНИЕ ================== */
+function addRelativeToCurrent() {
+  const person = getPerson(currentEditId);
+  const who = prompt(`Кем приходится новый человек для «${person.name}»?\n(сын, дочь, муж, жена, партнёр, отец, мать, брат, сестра)`, "сын");
+  if (!who) return;
+  const name = prompt("Имя нового родственника:");
+  if (!name) return;
+  const years = prompt("Годы жизни:", "");
+  const gender = (prompt("Пол (м/ж):", "м") || "м").toLowerCase();
+  const photo = gender.startsWith("ж") ? "👩" : "👨";
+
+  const maxId = Math.max(...family.map(x => x.id)) + 1;
+  const parentPalette = typeof person.palette === "number" ? person.palette : 1;
+  const newPerson = {
+    id: maxId, name, years: years || "", info: who + " " + person.name, photo, photoData: "",
+    parentId: null, parentId2: null, spouseIds: [],
+    side: "main", relationType: who, familyGroup: "main", palette: parentPalette
+  };
+
+  const w = who.toLowerCase();
+  if (w.includes("сын") || w.includes("дочь") || w.includes("ребен") || w.includes("ребён")) {
+    newPerson.parentId = person.id;
+    const spouses = getSpouses(person);
+    if (spouses.length === 1) newPerson.parentId2 = spouses[0].id;
+  } else if (w.includes("муж") || w.includes("жен") || w.includes("супруг") || w.includes("партн")) {
+    person.spouseIds.push(maxId);
+    newPerson.spouseIds = [person.id];
+    newPerson.side = "spouse";
+  } else if (w.includes("брат") || w.includes("сестр")) {
+    newPerson.parentId = person.parentId;
+    newPerson.parentId2 = person.parentId2;
+  } else if (w.includes("отец") || w.includes("мать") || w.includes("родител")) {
+    if (!person.parentId) person.parentId = maxId;
+    else if (!person.parentId2) person.parentId2 = maxId;
+  }
+  family.push(newPerson);
+  closeModal();
+  renderAll();
+}
+
+function addPartnerToCurrent() {
+  const person = getPerson(currentEditId);
+  const name = prompt("Имя партнёра/супруга для «" + person.name + "»:");
+  if (!name) return;
+  const maxId = Math.max(...family.map(x => x.id)) + 1;
+  const parentPalette = typeof person.palette === "number" ? person.palette : 1;
+  const newPartner = {
+    id: maxId, name, years: "",
+    info: "Супруг(а) " + person.name,
+    photo: "👤", photoData: "",
+    parentId: null, parentId2: null, spouseIds: [person.id],
+    side: "spouse", familyGroup: "main",
+    relationType: "супруг", palette: parentPalette
+  };
+  person.spouseIds.push(maxId);
+  family.push(newPartner);
+  closeModal();
+  renderAll();
+}
+
+function addChildToCurrent() {
+  const parent = getPerson(currentEditId);
+  const spouses = getSpouses(parent);
+  let secondParent = null;
+  if (spouses.length === 1) secondParent = spouses[0].id;
+  else if (spouses.length > 1) {
+    const opts = spouses.map((s,i) => `${i+1}. ${s.name}`).join("\n");
+    const pick = prompt("Кто второй родитель?\n" + opts, "1");
+    const n = parseInt(pick, 10);
+    if (n >= 1 && n <= spouses.length) secondParent = spouses[n-1].id;
+  }
+  const name = prompt("Имя ребёнка " + parent.name + ":");
+  if (!name) return;
+  const maxId = Math.max(...family.map(x => x.id)) + 1;
+  const parentPalette = typeof parent.palette === "number" ? parent.palette : 1;
+  family.push({
+    id: maxId, name, years: "", info: "Ребёнок " + parent.name, photo: "👶", photoData: "",
+    parentId: parent.id, parentId2: secondParent, spouseIds: [],
+    side: "main", familyGroup: "main", relationType: "ребёнок", palette: parentPalette
+  });
+  closeModal();
+  renderAll();
+}
+
+function deleteCurrentPerson() {
+  if (protectedIds.includes(currentEditId)) return alert("Нельзя удалять основателей рода.");
+  if (!confirm("Удалить этого человека и всех его потомков?")) return;
+  const toDelete = getAllDescendants(currentEditId);
+  toDelete.push(currentEditId);
+  family = family.filter(p => !toDelete.includes(p.id));
+  family.forEach(p => { p.spouseIds = (p.spouseIds || []).filter(sid => !toDelete.includes(sid)); });
+  toDelete.forEach(id => { delete personalTreePhotos[id]; });
+  closeModal();
+  renderAll();
+}
+
+function getAllDescendants(id) {
+  let res = [];
+  family.filter(p => p.parentId === id || p.parentId2 === id).forEach(ch => {
+    if (res.includes(ch.id)) return;
+    res.push(ch.id);
+    res = res.concat(getAllDescendants(ch.id));
+  });
+  return res;
+}
+
+function addNewPerson() {
+  const name = prompt("Имя нового человека:");
+  if (!name) return;
+  const maxId = Math.max(...family.map(x => x.id)) + 1;
+  family.push({ id: maxId, name, years: "", info: "", photo: "👤", photoData: "", parentId: null, parentId2: null, spouseIds: [], side: "main", familyGroup: "main", relationType: "", palette: 0 });
+  renderAll();
+}
+
+/* ================== РЕНДЕР ================== */
+function renderAll() {
+  if (viewMode === "personal" && currentOwnerId && !document.getElementById("personalTreeGalleryPage")) {
+    renderPersonalTree(currentOwnerId);
+  } else if (viewMode === "personal" && currentOwnerId && document.getElementById("personalTreeGalleryPage")) {
+    renderPersonalTreeGallery();
+  } else {
+    renderTree();
+    renderList();
+  }
+  renderFamilyPhotos();
+  syncPhotoButtons();
+  saveState();
+}
+
+function syncPhotoButtons() {
+  document.querySelectorAll('[id^="sortBtn-"]').forEach(b => b.classList.remove("active"));
+  const sBtn = document.getElementById("sortBtn-" + currentPhotoSort);
+  if (sBtn) sBtn.classList.add("active");
+  document.querySelectorAll('[id^="filterBtn-"]').forEach(b => b.classList.remove("active"));
+  const fBtn = document.getElementById("filterBtn-" + currentPhotoFilter);
+  if (fBtn) fBtn.classList.add("active");
+}
+
+function renderList() {
+  const container = document.getElementById("peopleList");
+  container.innerHTML = "";
+  [...family].sort((a,b)=>a.id-b.id).forEach(p => {
+    const spouseList = getSpouses(p);
+    const spousesHtmlStr = spouseList.map(s => {
+      const icon = isPartner(s) ? "💑" : "💍";
+      return `<div class="text-[#8d5524]">${icon} ${s.name}</div>`;
+    }).join("");
+
+    const photoHtml = p.photoData
+      ? `<img src="${p.photoData}" class="list-photo" alt="${p.name}">`
+      : `<div class="list-photo-emoji">${p.photo || '👤'}</div>`;
+    const pal = typeof p.palette === "number" ? p.palette : 1;
+
+    const div = document.createElement("div");
+    div.className = "person-card palette-" + pal + " border border-[#d4b89e] rounded-2xl p-5";
+    div.innerHTML = `
+      <div class="flex gap-4 items-start">
+        ${photoHtml}
+        <div class="flex-1">
+          <div class="font-bold">${p.name}</div>
+          <div class="text-sm text-gray-600">${p.years || '—'}</div>
+          ${spousesHtmlStr}
+        </div>
+      </div>`;
+    div.onclick = () => showPerson(p.id);
+    container.appendChild(div);
+  });
+}
+
+function filterList() {
+  const term = document.getElementById("search").value.toLowerCase();
+  document.querySelectorAll("#peopleList > div").forEach(el => {
+    el.style.display = el.textContent.toLowerCase().includes(term) ? "" : "none";
+  });
+}
+
+/* ================== ПАНОРАМА / ЗУМ ================== */
+function createTreeViewport() {
+  const vp = document.createElement("div");
+  vp.className = "tree-viewport";
+  vp.id = "treeViewport";
+  const canvas = document.createElement("div");
+  canvas.className = "tree-canvas";
+  canvas.id = "treeCanvas";
+  const controls = document.createElement("div");
+  controls.className = "zoom-controls";
+  controls.onmousedown = (e) => e.stopPropagation();
+  controls.ontouchstart = (e) => e.stopPropagation();
+  controls.innerHTML = `
+    <button type="button" onclick="zoomTree(0.85)" title="Уменьшить">−</button>
+    <span class="zoom-level" id="zoomLevel">100%</span>
+    <button type="button" onclick="zoomTree(1.15)" title="Увеличить">+</button>
+    <button type="button" onclick="resetTreeView()" title="Сбросить вид">⌂</button>
+  `;
+  const help = document.createElement("div");
+  help.className = "tree-help";
+  help.textContent = "🖱 колесо — зум · перетаскивание — сдвиг";
+  vp.appendChild(canvas);
+  vp.appendChild(controls);
+  vp.appendChild(help);
+  vp.addEventListener("mousedown", onDragStart);
+  window.addEventListener("mousemove", onDragMove);
+  window.addEventListener("mouseup", onDragEnd);
+  vp.addEventListener("wheel", onTreeWheel, { passive: false });
+  vp.addEventListener("touchstart", onTouchStart, { passive: true });
+  vp.addEventListener("touchmove", onTouchMove, { passive: false });
+  vp.addEventListener("touchend", onTouchEnd);
+  return { vp, canvas };
+}
+function updateTreeTransform() {
+  const canvas = document.getElementById("treeCanvas");
+  if (canvas) canvas.style.transform = `translate(${treePanX}px, ${treePanY}px) scale(${treeZoom})`;
+  const lvl = document.getElementById("zoomLevel");
+  if (lvl) lvl.textContent = Math.round(treeZoom * 100) + "%";
+}
+function zoomTree(factor, cx, cy) {
+  const vp = document.getElementById("treeViewport");
+  if (!vp) return;
+  const oldZoom = treeZoom;
+  treeZoom = Math.max(0.2, Math.min(3, treeZoom * factor));
+  if (cx !== undefined && cy !== undefined) {
+    const rect = vp.getBoundingClientRect();
+    const px = cx - rect.left;
+    const py = cy - rect.top;
+    treePanX = px - (px - treePanX) * (treeZoom / oldZoom);
+    treePanY = py - (py - treePanY) * (treeZoom / oldZoom);
+  }
+  updateTreeTransform();
+}
+function resetTreeView() { treeZoom = 1; treePanX = null; treePanY = 20; fitTreeView(true); }
+function onTreeWheel(e) { e.preventDefault(); const factor = e.deltaY < 0 ? 1.1 : 0.9; zoomTree(factor, e.clientX, e.clientY); }
+function onDragStart(e) {
+  if (e.button !== 0) return;
+  isDragging = true; dragMoved = false;
+  dragStartX = e.clientX; dragStartY = e.clientY;
+  startPanX = treePanX || 0; startPanY = treePanY || 0;
+  const vp = document.getElementById("treeViewport");
+  if (vp) vp.classList.add("dragging");
+}
+function onDragMove(e) {
+  if (!isDragging) return;
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+  treePanX = startPanX + dx; treePanY = startPanY + dy;
+  updateTreeTransform();
+}
+function onDragEnd() {
+  if (!isDragging) return;
+  isDragging = false;
+  const vp = document.getElementById("treeViewport");
+  if (vp) vp.classList.remove("dragging");
+}
+let touchStartDist = 0, touchStartZoom = 1;
+function onTouchStart(e) {
+  if (e.touches.length === 1) {
+    isDragging = true; dragMoved = false;
+    dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY;
+    startPanX = treePanX || 0; startPanY = treePanY || 0;
+  } else if (e.touches.length === 2) {
+    isDragging = false;
+    const [a, b] = e.touches;
+    touchStartDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    touchStartZoom = treeZoom;
+  }
+}
+function onTouchMove(e) {
+  if (e.touches.length === 1 && isDragging) {
+    const dx = e.touches[0].clientX - dragStartX;
+    const dy = e.touches[0].clientY - dragStartY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+    treePanX = startPanX + dx; treePanY = startPanY + dy;
+    updateTreeTransform();
+  } else if (e.touches.length === 2) {
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    if (touchStartDist > 0) {
+      const factor = dist / touchStartDist;
+      const newZoom = Math.max(0.2, Math.min(3, touchStartZoom * factor));
+      const cx = (a.clientX + b.clientX) / 2;
+      const cy = (a.clientY + b.clientY) / 2;
+      const oldZoom = treeZoom;
+      treeZoom = newZoom;
+      const vp = document.getElementById("treeViewport");
+      if (vp) {
+        const rect = vp.getBoundingClientRect();
+        const px = cx - rect.left; const py = cy - rect.top;
+        treePanX = px - (px - treePanX) * (treeZoom / oldZoom);
+        treePanY = py - (py - treePanY) * (treeZoom / oldZoom);
+      }
+      updateTreeTransform();
+    }
+  }
+}
+function onTouchEnd() { isDragging = false; }
+function fitTreeView(forceReset) {
+  const vp = document.getElementById("treeViewport");
+  const canvas = document.getElementById("treeCanvas");
+  if (!vp || !canvas) return;
+  const key = viewMode === "personal" ? "personal_" + currentOwnerId : "full";
+  if (key !== treeViewKey || forceReset) {
+    treeViewKey = key;
+    treeZoom = 1; treePanX = null; treePanY = 20;
+  }
+  const canvasH = canvas.offsetHeight;
+  const canvasW = canvas.offsetWidth;
+  const vpH = Math.min(Math.max(canvasH + 20, 400), Math.max(400, window.innerHeight * 0.75));
+  vp.style.height = vpH + "px";
+  if (treePanX === null) {
+    const vpW = vp.clientWidth;
+    treePanX = canvasW < vpW ? Math.round((vpW - canvasW) / 2) : 20;
+  }
+  updateTreeTransform();
+}
+
+/* ================== ОБЩАЯ ГАЛЕРЕЯ ================== */
+function getSortedPhotos() {
+  let arr = [...familyPhotos];
+  if (currentPhotoSort === 'date')  arr.sort((a,b) => (a.date||"").localeCompare(b.date||""));
+  if (currentPhotoSort === 'event') arr.sort((a,b) => (a.event||"").localeCompare(b.event||""));
+  if (currentPhotoSort === 'kind')  arr.sort((a,b) => (a.kind||"Фото").localeCompare(b.kind||"Фото"));
+  if (currentPhotoFilter !== 'all') arr = arr.filter(p => (p.kind || "Фото") === currentPhotoFilter);
+  return arr;
+}
+function setPhotoSort(type) { currentPhotoSort = type; syncPhotoButtons(); renderFamilyPhotos(); saveState(); }
+function setPhotoFilter(kind) { currentPhotoFilter = kind; syncPhotoButtons(); renderFamilyPhotos(); saveState(); }
+function kindBadge(kind) {
+  const k = kind || "Фото";
+  const icon = k === "Документ" ? "📄" : k === "Медаль" ? "🎖" : k === "Другое" ? "📦" : "📷";
+  return `<span class="photo-kind-badge">${icon} ${k}</span>`;
+}
+function uploadFamilyPhoto() {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = "image/*";
+  input.onchange = function(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      const kindInput = prompt("Вид материала:\n1 — Фото\n2 — Документ\n3 — Медаль\n4 — Другое", "Фото");
+      const map = { "1": "Фото", "2": "Документ", "3": "Медаль", "4": "Другое" };
+      const kind = map[(kindInput || "").trim()] || (kindInput || "Фото").trim();
+      const date = prompt("Дата материала:", "");
+      const event = prompt("Событие / подпись:", "");
+      const people = prompt("Кто изображён / о ком:", "");
+      familyPhotos.push({ dataUrl: ev.target.result, date: date || "Дата неизвестна", event: event || "", people: people || "", kind: kind || "Фото" });
+      renderFamilyPhotos(); saveState();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+function renderFamilyPhotos() {
+  const container = document.getElementById("photoGallery");
+  if (!container) return;
+  container.innerHTML = "";
+  const photos = getSortedPhotos();
+  if (photos.length === 0) {
+    container.innerHTML = `<p class="col-span-full text-center text-gray-500 italic py-8">Ничего не найдено — загрузите фото, документ или медаль в общую галерею. Галереи древ открываются через карточку добавочного человека → «🌳 Открыть древо» → «📸 Галерея древа».</p>`;
+    return;
+  }
+  photos.forEach((photo) => {
+    const i = familyPhotos.indexOf(photo);
+    const div = document.createElement("div");
+    div.className = "photo-card bg-white border border-[#d4b89e] rounded-2xl overflow-hidden";
+    div.innerHTML = `
+      <img src="${photo.dataUrl}" class="w-full h-56 object-cover cursor-pointer" onclick="openFullPhoto(${i})">
+      <div class="p-4">
+        ${kindBadge(photo.kind)}
+        <p class="text-xs text-gray-500">${photo.date}</p>
+        <p class="text-sm font-semibold">${photo.event}</p>
+        <p class="text-xs text-gray-600">${photo.people}</p>
+        <div class="flex gap-2 mt-4">
+          <button onclick="downloadPhoto(${i})" class="flex-1 bg-blue-600 text-white text-xs py-2 rounded-xl">Скачать</button>
+          <button onclick="editFamilyPhoto(${i})" class="flex-1 bg-amber-600 text-white text-xs py-2 rounded-xl">Изменить</button>
+          <button onclick="deleteFamilyPhoto(${i})" class="flex-1 bg-red-600 text-white text-xs py-2 rounded-xl">Удалить</button>
+        </div>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+function openFullPhoto(i) {
+  const photo = familyPhotos[i];
+  const win = window.open();
+  win.document.write('<img src="' + photo.dataUrl + '" style="max-width:100%; height:auto;">');
+}
+function downloadPhoto(i) {
+  const a = document.createElement("a");
+  a.href = familyPhotos[i].dataUrl;
+  a.download = (familyPhotos[i].kind || "Фото") + "_" + (familyPhotos[i].date || "дата") + ".jpg";
+  a.click();
+}
+function deleteFamilyPhoto(i) {
+  if (confirm("Удалить материал?")) { familyPhotos.splice(i, 1); renderFamilyPhotos(); saveState(); }
+}
+function editFamilyPhoto(i) {
+  const p = familyPhotos[i];
+  const kind = prompt("Вид (Фото / Документ / Медаль / Другое):", p.kind || "Фото"); if (kind === null) return;
+  const date = prompt("Дата:", p.date || ""); if (date === null) return;
+  const event = prompt("Событие / подпись:", p.event || ""); if (event === null) return;
+  const people = prompt("Кто изображён / о ком:", p.people || ""); if (people === null) return;
+  p.kind = kind.trim() || "Фото"; p.date = date || "Дата неизвестна"; p.event = event; p.people = people;
+  renderFamilyPhotos(); saveState();
+}
+
+/* ================== ВКЛАДКИ / РОУТИНГ ================== */
+function showTab(tabId) {
+  document.querySelectorAll('[id^="content-"]').forEach(el => el.classList.add("hidden"));
+  document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.remove("active", "border-b-4", "border-[#8d5524]"));
+  const c = document.getElementById("content-" + tabId);
+  const t = document.getElementById("tab-" + tabId);
+  if (c) c.classList.remove("hidden");
+  if (t) t.classList.add("active", "border-b-4", "border-[#8d5524]");
+  currentTab = tabId;
+  if (tabId === "photos") syncPhotoButtons();
+  if (tabId === "main") setTimeout(() => fitTreeView(false), 0);
+}
+
+function route() {
+  const hash = location.hash.replace('#', '');
+  const backBar = document.getElementById("backBar");
+  const tabsWrapper = document.getElementById("tabsWrapper");
+  const oldGallery = document.getElementById("personalTreeGalleryPage");
+  if (oldGallery) oldGallery.remove();
+
+  if (hash.startsWith('tree_')) {
+    const id = parseInt(hash.replace('tree_', ''));
+    if (getPerson(id) && canHavePersonalTree(getPerson(id))) {
+      viewMode = 'personal';
+      currentOwnerId = id;
+      if (backBar) backBar.classList.remove("hidden");
+      if (tabsWrapper) tabsWrapper.classList.add("hidden");
+      document.getElementById("mainTitle").textContent = "Древо: " + getPerson(id).name;
+      renderPersonalTree(id);
+      saveState();
+      return;
+    }
+  }
+  viewMode = 'full';
+  currentOwnerId = null;
+  treeViewKey = '';
+  if (backBar) backBar.classList.add("hidden");
+  if (tabsWrapper) tabsWrapper.classList.remove("hidden");
+  document.getElementById("mainTitle").textContent = "Семейная летопись";
+  document.title = "Семейная летопись";
+  renderTree();
+  renderList();
+  renderFamilyPhotos();
+  syncPhotoButtons();
+  const tabToShow = ['main','list','photos'].includes(currentTab) ? currentTab : 'main';
+  showTab(tabToShow);
+  saveState();
+}
+window.addEventListener('hashchange', route);
+
+/* ================== ЭКСПОРТ ================== */
+function exportTree() {
+  saveState();
+  let html = document.documentElement.outerHTML;
+  try {
+    html = html.replace(/let family = \[[\s\S]*?\];/, 'let family = ' + JSON.stringify(family) + ';');
+    html = html.replace(/let familyPhotos = \[[\s\S]*?\];/, 'let familyPhotos = ' + JSON.stringify(familyPhotos) + ';');
+    html = html.replace(/let personalTreePhotos = \{\};/, 'let personalTreePhotos = ' + JSON.stringify(personalTreePhotos) + ';');
+  } catch(e) {}
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "Семейная_летопись.html"; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  alert("Дерево сохранено!");
+}
+
+/* ================== СИНХРОНИЗАЦИЯ ================== */
+window.addEventListener("storage", (e) => {
+  if (e.key !== STORAGE_KEY) return;
+  loadState();
+  route();
+});
+
+/* ===== ПРАВКИ: отдельные древа супругов · цвет рамки умерших · сохранение ===== */
+
+// У человека из отдельного древа есть поле treeOwnerId (id супруга-владельца древа).
+// Нет поля — человек принадлежит основному древу.
+const inMain = p => p.treeOwnerId == null;
+function currentScope() {
+  return (viewMode === 'personal' && currentOwnerId !== null) ? currentOwnerId : null;
+}
+
+// Супруги, видимые в текущем древе (основном или отдельном)
+function getSpouses(person) {
+  if (!person || !Array.isArray(person.spouseIds)) return [];
+  const sc = currentScope();
+  return person.spouseIds.map(getPerson).filter(s => s &&
+    (sc === null ? inMain(s) : (inMain(s) || s.treeOwnerId === sc || person.id === sc)));
+}
+
+// Отдельное древо = владелец + его партнёры + всё, что добавили именно в это древо
+function getPersonalTreeMembers(ownerId) {
+  const owner = getPerson(ownerId);
+  if (!owner) return [];
+  const ids = new Set([owner.id]);
+  getSpouses(owner).forEach(s => ids.add(s.id));
+  family.forEach(p => {
+    if (p.treeOwnerId !== ownerId) return;
+    ids.add(p.id);
+    getSpouses(p).forEach(s => ids.add(s.id));
+  });
+  return family.filter(p => ids.has(p.id));
+}
+
+// Корни: у кого нет родителей в древе (владелец первым; супруги показываются рядом с партнёром)
+function findRoots(members) {
+  const sc = currentScope();
+  const ids = new Set(members.map(m => m.id));
+  const hasParent = p => [p.parentId, p.parentId2].some(x => x != null && ids.has(x));
+  const cands = members.filter(p => !hasParent(p)).sort((a, b) => (b.id === sc) - (a.id === sc));
+  const roots = [], covered = new Set();
+  cands.forEach(c => {
+    if (covered.has(c.id)) return;
+    const sp = getSpouses(c).filter(s => ids.has(s.id));
+    if (sp.some(hasParent)) return;
+    roots.push(c);
+    sp.forEach(s => covered.add(s.id));
+  });
+  return roots;
+}
+
+// Дети пары: ребёнок привязан к любому из родителей (parentId или parentId2)
+function buildChildrenMap(members) {
+  const map = new Map();
+  members.forEach(m => {
+    const cluster = new Set([m.id, ...getSpouses(m).map(s => s.id)]);
+    map.set(m.id, members.filter(ch => ch.id !== m.id && (cluster.has(ch.parentId) || cluster.has(ch.parentId2))));
+  });
+  return map;
+}
+function groupChildrenBySecondParent(children) {
+  const groups = new Map();
+  children.forEach(ch => {
+    const key = [ch.parentId, ch.parentId2].filter(x => x != null).sort((a, b) => a - b).join("_") || "__none__";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(ch);
+  });
+  return groups;
+}
+
+function drawTree(container, members, extra) {
+  const childrenMap = buildChildrenMap(members);
+  const rendered = new Set();
+  const { vp, canvas } = createTreeViewport();
+  const treeDiv = document.createElement("div");
+  treeDiv.className = "tree";
+  const rootUl = document.createElement("ul");
+  findRoots(members).forEach(r => renderPersonBranch(r, rootUl, childrenMap, rendered));
+  treeDiv.appendChild(rootUl);
+  canvas.appendChild(treeDiv);
+  container.appendChild(vp);
+  if (extra) container.appendChild(extra);
+  fitTreeView();
+}
+
+// Основное древо: только люди без treeOwnerId
+function renderTree() {
+  const container = document.getElementById("treeContainer");
+  container.innerHTML = "";
+  const members = family.filter(p => p.side === "main" && inMain(p));
+  if (members.length === 0) {
+    container.innerHTML = `<p class="text-center text-gray-500">Нет данных</p>`;
+    return;
+  }
+  drawTree(container, members);
+}
+
+function renderPersonalTree(ownerId) {
+  document.getElementById("tabsWrapper")?.classList.add("hidden");
+  ["content-list", "content-photos"].forEach(id => document.getElementById(id)?.classList.add("hidden"));
+  document.getElementById("content-main")?.classList.remove("hidden");
+  document.getElementById("backBar")?.classList.remove("hidden");
+  const owner = getPerson(ownerId);
+  document.getElementById("mainTitle").textContent = owner ? "Древо: " + owner.name : "Древо";
+  const container = document.getElementById("treeContainer");
+  container.innerHTML = "";
+  const galleryWrap = document.createElement("div");
+  galleryWrap.className = "mt-6 flex justify-center";
+  galleryWrap.innerHTML = `<button onclick="openPersonalTreeGallery(${ownerId})"
+    class="bg-teal-700 hover:bg-teal-800 text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2">📸 Галерея древа</button>`;
+  drawTree(container, getPersonalTreeMembers(ownerId), galleryWrap);
+}
+
+/* ---- Умершие: другая рамка ---- */
+function isDeceased(p) {
+  const y = ((p && p.years) || "").trim();
+  if (!y || /^\d{4}-\d{1,2}-\d{1,2}$/.test(y)) return false;
+  const parts = y.split(/\s*[—–-]\s*/);
+  return (parts.length > 1 && parts.slice(1).some(s => s.trim() !== "")) || /†|ум\.|умер/i.test(y);
+}
+const _makeNode = makeNode;
+makeNode = function (person, isMain, palette) {
+  const n = _makeNode(person, isMain, palette);
+  if (isDeceased(person)) n.classList.add("is-deceased");
+  return n;
+};
+
+/* ---- Список «Все люди»: рамка умерших и пометка людей из отдельных древ ---- */
+const _renderList = renderList;
+renderList = function () {
+  _renderList();
+  const cards = document.querySelectorAll("#peopleList > div");
+  [...family].sort((a, b) => a.id - b.id).forEach((p, i) => {
+    const el = cards[i];
+    if (!el) return;
+    if (isDeceased(p)) el.classList.add("is-deceased");
+    if (p.treeOwnerId != null) {
+      const o = getPerson(p.treeOwnerId);
+      el.querySelector(".flex-1")?.insertAdjacentHTML("beforeend",
+        `<div class="tree-badge">🌳 Древо: ${o ? o.name : "—"}</div>`);
+    }
+  });
+};
+
+/* ---- Старые данные: людей, ранее добавленных в древо супруга, переносим в это древо ---- */
+const _migrate = migrate;
+migrate = function () {
+  _migrate();
+  const tagDown = (p, owner) => {
+    if (p.treeOwnerId != null || protectedIds.includes(p.id) || p.id === owner) return;
+    p.treeOwnerId = owner;
+    family.forEach(c => {
+      if (c.side === "main" && (c.parentId === p.id || c.parentId2 === p.id)) tagDown(c, owner);
+    });
+    (p.spouseIds || []).map(getPerson).forEach(s => { if (s && s.side === "spouse") tagDown(s, owner); });
+  };
+  family.forEach(p => {
+    if (p.side !== "main" || p.treeOwnerId != null) return;
+    const par = getPerson(p.parentId);
+    if (par && par.side === "spouse") tagDown(p, par.id);
+  });
+  family.forEach(o => {
+    if (o.side !== "spouse" || o.treeOwnerId != null) return;
+    [o.parentId, o.parentId2].map(getPerson).forEach(par => { if (par && par.side === "main") tagDown(par, o.id); });
+  });
+};
+
+/* ---- Добавление: всё, что добавлено в отдельном древе, остаётся в нём ---- */
+['addChildToCurrent', 'addPartnerToCurrent'].forEach(name => {
+  const orig = window[name];
+  window[name] = function () {
+    const sc = currentScope(), n = family.length;
+    orig.apply(this, arguments);
+    if (sc !== null && family.length > n) {
+      family.slice(n).forEach(p => { p.treeOwnerId = sc; });
+      renderAll();
+    }
+  };
+});
+
+function addRelativeToCurrent() {
+  const person = getPerson(currentEditId);
+  const who = prompt(`Кем приходится новый человек для «${person.name}»?\n(сын, дочь, муж, жена, партнёр, отец, мать, брат, сестра)`, "сын");
+  if (!who) return;
+  const w = who.toLowerCase();
+  const kind = /сын|дочь|ребен|ребён/.test(w) ? "child"
+    : /муж|жен|супруг|партн/.test(w) ? "spouse"
+    : /брат|сестр/.test(w) ? "sibling"
+    : /отец|мать|родител/.test(w) ? "parent" : null;
+  if (!kind) return alert("Не удалось понять родство. Допустимо: сын, дочь, муж, жена, партнёр, отец, мать, брат, сестра.");
+  let slot = null;
+  if (kind === "parent") {
+    slot = person.parentId == null ? "parentId" : (person.parentId2 == null ? "parentId2" : null);
+    if (!slot) return alert("У этого человека уже указаны оба родителя.");
+  }
+  const name = prompt("Имя нового родственника:");
+  if (!name) return;
+  const years = prompt("Годы жизни:", "");
+  const gender = (prompt("Пол (м/ж):", "м") || "м").toLowerCase();
+  const id = Math.max(...family.map(x => x.id)) + 1;
+  const np = {
+    id, name, years: years || "", info: who + " " + person.name,
+    photo: gender.startsWith("ж") ? "👩" : "👨", photoData: "",
+    parentId: null, parentId2: null, spouseIds: [],
+    side: "main", relationType: who, familyGroup: "main",
+    palette: typeof person.palette === "number" ? person.palette : 1,
+    treeOwnerId: currentScope()
+  };
+  if (kind === "child") {
+    np.parentId = person.id;
+    const sp = getSpouses(person);
+    if (sp.length === 1) np.parentId2 = sp[0].id;
+  } else if (kind === "spouse") {
+    person.spouseIds.push(id);
+    np.spouseIds = [person.id];
+    np.side = "spouse";
+  } else if (kind === "sibling") {
+    np.parentId = person.parentId;
+    np.parentId2 = person.parentId2;
+  } else {
+    const other = getPerson(slot === "parentId" ? person.parentId2 : person.parentId);
+    person[slot] = id;
+    if (other) {            // второй родитель — пара первому
+      other.spouseIds.push(id);
+      np.spouseIds = [other.id];
+      np.side = "spouse";
+    }
+  }
+  family.push(np);
+  closeModal();
+  renderAll();
+}
+
+// Удаление человека из отдельного древа не трогает людей основного древа
+function deleteCurrentPerson() {
+  const p = getPerson(currentEditId);
+  if (!p) return;
+  if (protectedIds.includes(p.id)) return alert("Нельзя удалять основателей рода.");
+  if (!confirm("Удалить этого человека и всех его потомков?")) return;
+  let del = [p.id, ...getAllDescendants(p.id)];
+  if (p.treeOwnerId != null) {
+    del = del.filter(id => id === p.id || getPerson(id)?.treeOwnerId === p.treeOwnerId);
+  }
+  family = family.filter(x => !del.includes(x.id));
+  family.forEach(x => {
+    x.spouseIds = (x.spouseIds || []).filter(s => !del.includes(s));
+    if (del.includes(x.parentId)) x.parentId = null;
+    if (del.includes(x.parentId2)) x.parentId2 = null;
+  });
+  del.forEach(id => { delete personalTreePhotos[id]; });
+  closeModal();
+  renderAll();
+}
+
+/* ---- Сохранение ---- */
+function showToast(msg) {
+  const t = document.createElement("div");
+  t.textContent = msg;
+  t.style.cssText = "position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#3f2a1e;color:#fff;padding:10px 20px;border-radius:14px;font-weight:700;z-index:100;box-shadow:0 8px 20px rgba(0,0,0,.25)";
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1800);
+}
+
+function saveChanges() {
+  saveState();
+  showToast("✅ Изменения сохранены");
+}
+
+function saveHtml() {
+  saveState();
+  const doc = document.documentElement.cloneNode(true);
+  ["treeContainer", "peopleList", "photoGallery"].forEach(id => {
+    const el = doc.querySelector("#" + id);
+    if (el) el.innerHTML = "";
+  });
+  doc.querySelector("#personalTreeGalleryPage")?.remove();
+  const json = v => JSON.stringify(v).replace(/</g, "\\u003c");
+  let html = "<!DOCTYPE html>\n" + doc.outerHTML;
+  html = html.replace(/let family = \[[\s\S]*?\];/, () => "let family = " + json(family) + ";");
+  html = html.replace(/let familyPhotos = \[[\s\S]*?\];/, () => "let familyPhotos = " + json(familyPhotos) + ";");
+  html = html.replace(/let personalTreePhotos = \{[\s\S]*?\};/, () => "let personalTreePhotos = " + json(personalTreePhotos) + ";");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  a.download = "Семейная_летопись.html";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  showToast("💾 Файл .html сохранён");
+}
+function exportTree() { saveHtml(); }
+
+/* ===== ПРАВКИ 2: древо супруга с потомками · галерея · обрезка фото ===== */
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const EVENTS = ["День Рождения", "Свадьба", "Новый год", "Рождество", "День знаний", "Церковный праздник",
+  "Семейный праздник", "Семейные будни", "Спортивные события", "Похороны", "Другое"];
+
+/* ---- Древо супруга: владелец, его партнёры, ВСЕ его дети и внуки из основного древа + то, что добавили в этом древе ---- */
+function getPersonalTreeMembers(ownerId) {
+  const owner = getPerson(ownerId);
+  if (!owner) return [];
+  const ids = new Set([owner.id]), queue = [owner.id];
+  getSpouses(owner).forEach(s => ids.add(s.id));
+  family.forEach(p => { if (p.treeOwnerId === ownerId && !ids.has(p.id)) { ids.add(p.id); queue.push(p.id); } });
+  while (queue.length) {
+    const pid = queue.shift();
+    family.forEach(ch => {
+      if ((ch.parentId !== pid && ch.parentId2 !== pid) || ids.has(ch.id)) return;
+      if (!inMain(ch) && ch.treeOwnerId !== ownerId) return;
+      ids.add(ch.id); queue.push(ch.id);
+    });
+    getSpouses(getPerson(pid)).forEach(s => ids.add(s.id));
+  }
+  return family.filter(p => ids.has(p.id));
+}
+
+/* ---- Приведение старых фото к новому формату ---- */
+const _migrate2 = migrate;
+migrate = function () {
+  _migrate2();
+  const fix = ph => {
+    if (!ph) return;
+    ph.kind = ph.kind === "Фото" ? "Фото" : (ph.kind === "Документ" || ph.kind === "Медаль" ? "Документ" : "Фото");
+    if (typeof ph.desc !== "string") ph.desc = "";
+    if (!EVENTS.includes(ph.event)) {
+      const t = String(ph.event || "");
+      if (t && !ph.desc) ph.desc = t;
+      ph.event = /похорон/i.test(t) ? "Похороны" : "Другое";
+    }
+    if (!ph.date) ph.date = "Дата неизвестна";
+    if (typeof ph.people !== "string") ph.people = "";
+  };
+  familyPhotos.forEach(fix);
+  Object.values(personalTreePhotos).forEach(a => Array.isArray(a) && a.forEach(fix));
+};
+
+/* ---- Сортировка и дата ---- */
+function dateKey(s) {
+  s = String(s || ""); let m;
+  if ((m = s.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/))) return +m[3] * 10000 + +m[2] * 100 + +m[1];
+  if ((m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/))) return +m[1] * 10000 + +m[2] * 100 + +m[3];
+  if ((m = s.match(/(\d{1,2})[.\/-](\d{4})/))) return +m[2] * 10000 + +m[1] * 100;
+  if ((m = s.match(/(\d{4})/))) return +m[1] * 10000;
+  return null;
+}
+const cmpDate = (a, b, dir) => {
+  const x = dateKey(a.date), y = dateKey(b.date);
+  if (x === y) return 0;
+  if (x === null) return 1;
+  if (y === null) return -1;
+  return (x - y) * dir;
+};
+
+/* ---- Галерея (общая и галереи древ) ---- */
+const GAL = { fam: { sort: "date-desc", ev: "all", kind: "all" }, per: { sort: "date-desc", ev: "all", kind: "all" } };
+const galList = key => key === "fam" ? familyPhotos : getPersonalTreePhotos(currentOwnerId);
+
+function galView(key) {
+  const st = GAL[key];
+  let arr = galList(key).filter(p => st.kind === "all" || p.kind === st.kind);
+  // «Похороны» видны только при выборе этого события в режиме «По событию»
+  if (st.sort === "event" && st.ev !== "all") arr = arr.filter(p => p.event === st.ev);
+  else arr = arr.filter(p => p.event !== "Похороны");
+  if (st.sort === "event") arr.sort((a, b) => EVENTS.indexOf(a.event) - EVENTS.indexOf(b.event) || cmpDate(a, b, 1));
+  else arr.sort((a, b) => cmpDate(a, b, st.sort === "date-asc" ? 1 : -1));
+  return arr;
+}
+function galSet(key, prop, val) {
+  GAL[key][prop] = val;
+  if (prop === "sort" && val !== "event") GAL[key].ev = "all";
+  renderGallery(key);
+}
+function galControls(key, el) {
+  const st = GAL[key];
+  const b = (cls, on, js, label) => `<button class="${cls}${on ? " active" : ""}" onclick="${js}">${label}</button>`;
+  const S = (v, label) => b("photo-sort-btn", st.sort === v, `galSet('${key}','sort','${v}')`, label);
+  const E = (v, label) => b("photo-filter-btn", st.ev === v, `galSet('${key}','ev','${v}')`, label);
+  const K = (v, label) => b("photo-filter-btn", st.kind === v, `galSet('${key}','kind','${v}')`, label);
+  el.innerHTML = `
+    <div class="gal-row"><span>Сортировка:</span>${S("date-asc", "📅 Старые → новые")}${S("date-desc", "📅 Новые → старые")}${S("event", "🎉 По событию")}</div>
+    ${st.sort === "event" ? `<div class="gal-row"><span>Событие:</span>${E("all", "Все события")}${EVENTS.map(e => E(e, e)).join("")}</div>` : ""}
+    <div class="gal-row"><span>Фильтр:</span>${K("all", "Все")}${K("Фото", "📷 Фото")}${K("Документ", "📄 Документы")}</div>`;
+}
+function ensureCtl(key) {
+  const id = key === "fam" ? "famCtl" : "perCtl";
+  let c = $(id);
+  if (!c) {
+    ["sortBtn-none", "filterBtn-all", "psortBtn-none", "pfilterBtn-all"].forEach(x => $(x)?.parentElement.remove());
+    c = document.createElement("div");
+    c.id = id;
+    $(key === "fam" ? "photoGallery" : "personalTreeGallery").before(c);
+  }
+  return c;
+}
+function renderGallery(key) {
+  const grid = $(key === "fam" ? "photoGallery" : "personalTreeGallery");
+  if (!grid) return;
+  galControls(key, ensureCtl(key));
+  const arr = galView(key), st = GAL[key];
+  grid.innerHTML = "";
+  if (!arr.length) {
+    grid.innerHTML = `<p class="col-span-full text-center text-gray-500 italic py-8">Ничего не найдено. Загрузите фото или документ.</p>`;
+    return;
+  }
+  let last = null;
+  arr.forEach((ph, i) => {
+    if (st.sort === "event" && st.ev === "all" && ph.event !== last) {
+      last = ph.event;
+      grid.insertAdjacentHTML("beforeend", `<h4 class="col-span-full gal-h">${esc(last)}</h4>`);
+    }
+    const d = document.createElement("div");
+    d.className = "photo-card bg-white border border-[#d4b89e] rounded-2xl overflow-hidden cursor-pointer";
+    d.innerHTML = `<img src="${ph.dataUrl}" class="w-full h-48 object-cover" loading="lazy">
+      <div class="p-3">${kindBadge(ph.kind)} <span class="photo-kind-badge">${esc(ph.event)}</span>
+      <p class="text-xs text-gray-500">${esc(ph.date)}</p><p class="text-xs text-gray-600">${esc(ph.people)}</p></div>`;
+    d.onclick = () => openViewer(key, arr, i);
+    grid.appendChild(d);
+  });
+}
+function renderFamilyPhotos() { renderGallery("fam"); }
+function renderPersonalTreeGallery() { renderGallery("per"); }
+const _opg = openPersonalTreeGallery;
+openPersonalTreeGallery = function (id) { GAL.per = { sort: "date-desc", ev: "all", kind: "all" }; _opg(id); };
+
+/* ---- Просмотр фото на странице: рядом описание и вся информация ---- */
+let V = null;
+function openViewer(key, arr, i) { V = { key, arr, i }; showViewer(); }
+function showViewer() {
+  let el = $("viewer");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "viewer";
+    el.onclick = e => { if (e.target === el) closeViewer(); };
+    document.body.appendChild(el);
+  }
+  const ph = V.arr[V.i], many = V.arr.length > 1;
+  el.innerHTML = `<div class="vw-box">
+    <button class="vw-x" onclick="closeViewer()">×</button>
+    <div class="vw-img"><img src="${ph.dataUrl}">${many ? `<button class="vw-nav l" onclick="viewerStep(-1)">‹</button><button class="vw-nav r" onclick="viewerStep(1)">›</button>` : ""}</div>
+    <div class="vw-info">
+      ${kindBadge(ph.kind)} <span class="photo-kind-badge">${esc(ph.event)}</span>
+      <p><b>Дата:</b> ${esc(ph.date)}</p>
+      ${ph.people ? `<p><b>Кто изображён / о ком:</b> ${esc(ph.people)}</p>` : ""}
+      ${ph.desc ? `<p><b>Описание:</b><br>${esc(ph.desc).replace(/\n/g, "<br>")}</p>` : ""}
+      <p class="text-xs text-gray-500">${V.i + 1} из ${V.arr.length}</p>
+      <div class="vw-actions"><button onclick="viewerDownload()">Скачать</button><button onclick="viewerEdit()">Изменить</button><button class="del" onclick="viewerDelete()">Удалить</button></div>
+    </div></div>`;
+  el.classList.remove("hidden");
+}
+function closeViewer() { $("viewer")?.classList.add("hidden"); V = null; }
+function viewerStep(d) { V.i = (V.i + d + V.arr.length) % V.arr.length; showViewer(); }
+function viewerDownload() {
+  const ph = V.arr[V.i], a = document.createElement("a");
+  a.href = ph.dataUrl;
+  a.download = ((ph.kind || "Фото") + "_" + (ph.date || "")).replace(/[\\/:*?"<>|]/g, "_") + ".jpg";
+  a.click();
+}
+function viewerEdit() {
+  const ph = V.arr[V.i];
+  openPhotoDialog({ title: "Изменить информацию", fields: true, values: ph,
+    onSave: (_, v) => { Object.assign(ph, v); saveState(); renderGallery(V.key); showViewer(); } });
+}
+function viewerDelete() {
+  if (!confirm("Удалить материал?")) return;
+  const ph = V.arr[V.i], list = galList(V.key);
+  list.splice(list.indexOf(ph), 1);
+  V.arr.splice(V.i, 1);
+  saveState();
+  renderGallery(V.key);
+  if (!V.arr.length) return closeViewer();
+  V.i = Math.min(V.i, V.arr.length - 1);
+  showViewer();
+}
+document.addEventListener("keydown", e => {
+  if (!V || $("pdlg")) return;
+  if (e.key === "Escape") closeViewer();
+  if (e.key === "ArrowLeft") viewerStep(-1);
+  if (e.key === "ArrowRight") viewerStep(1);
+});
+
+/* ---- Окно добавления фото: обрезка + данные ---- */
+function closeDlg() { $("pdlg")?.remove(); }
+function cropData(img, R, dw, maxSide) {
+  const k = img.naturalWidth / dw;
+  const sx = Math.round(R.x * k), sy = Math.round(R.y * k), sw = Math.max(1, Math.round(R.w * k)), sh = Math.max(1, Math.round(R.h * k));
+  const sc = Math.min(1, maxSide / Math.max(sw, sh));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(sw * sc)); c.height = Math.max(1, Math.round(sh * sc));
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.85);
+}
+function openPhotoDialog(o) {
+  closeDlg();
+  const d = document.createElement("div");
+  d.id = "pdlg"; d.className = "pdlg";
+  const form = o.fields ? `
+    <label>Вид</label><select id="fKind"><option>Фото</option><option>Документ</option></select>
+    <label>Дата</label><input id="fDate" placeholder="дд.мм.гггг, мм.гггг или гггг">
+    <label>Событие</label><select id="fEvent">${EVENTS.map(e => `<option>${e}</option>`).join("")}</select>
+    <label>Кто изображён / о ком</label><input id="fPeople">
+    <label>Описание</label><textarea id="fDesc" rows="3"></textarea>` : "";
+  const crop = o.file ? `
+    <div style="text-align:center"><div class="crop-stage" id="cropStage"><img id="cropImg"><div id="cropRect"><i></i><i></i><i></i><i></i></div></div></div>
+    <div class="crop-tools"><span>Обрезка: тяните рамку или углы</span>
+      <select id="cropRatio"><option value="0">Свободно</option><option value="1">1:1</option><option value="1.3333">4:3</option><option value="0.75">3:4</option></select>
+      <button type="button" id="cropReset">Всё фото</button></div>` : "";
+  d.innerHTML = `<div class="pdlg-box"><div class="pdlg-head"><b>${esc(o.title)}</b><button onclick="closeDlg()">×</button></div>
+    <div class="pdlg-body">${crop}${form}</div>
+    <div class="pdlg-foot"><button id="pdSave">Сохранить</button><button class="sec" onclick="closeDlg()">Отмена</button></div></div>`;
+  document.body.appendChild(d);
+  if (o.fields) {
+    const v = o.values || {};
+    $("fKind").value = v.kind || "Фото";
+    $("fDate").value = v.date && v.date !== "Дата неизвестна" ? v.date : "";
+    $("fEvent").value = v.event || "Другое";
+    $("fPeople").value = v.people || "";
+    $("fDesc").value = v.desc || "";
+  }
+  let img, R = { x: 0, y: 0, w: 0, h: 0 }, dw = 0, dh = 0, ratio = o.ratio || 0, drag = null;
+  if (o.file) {
+    img = $("cropImg");
+    const stage = $("cropStage"), rc = $("cropRect");
+    $("cropRatio").value = String(ratio);
+    const draw = () => { rc.style.cssText = `left:${R.x}px;top:${R.y}px;width:${R.w}px;height:${R.h}px`; };
+    const full = () => {
+      let w = dw, h = dh;
+      if (ratio) { if (w / h > ratio) w = h * ratio; else h = w / ratio; }
+      R = { x: (dw - w) / 2, y: (dh - h) / 2, w, h }; draw();
+    };
+    const pt = e => { const b = img.getBoundingClientRect(); return [clamp(e.clientX - b.left, 0, dw), clamp(e.clientY - b.top, 0, dh)]; };
+    stage.onpointerdown = e => {
+      e.preventDefault();
+      const [px, py] = pt(e);
+      const cs = [[R.x, R.y], [R.x + R.w, R.y], [R.x, R.y + R.h], [R.x + R.w, R.y + R.h]];
+      const c = cs.findIndex(([cx, cy]) => Math.abs(px - cx) < 26 && Math.abs(py - cy) < 26);
+      if (c >= 0) drag = { m: "size", ax: cs[3 - c][0], ay: cs[3 - c][1] };
+      else if (px > R.x && px < R.x + R.w && py > R.y && py < R.y + R.h) drag = { m: "move", ox: px - R.x, oy: py - R.y };
+      else drag = { m: "size", ax: px, ay: py };
+      stage.setPointerCapture(e.pointerId);
+    };
+    stage.onpointermove = e => {
+      if (!drag) return;
+      const [px, py] = pt(e);
+      if (drag.m === "move") { R.x = clamp(px - drag.ox, 0, dw - R.w); R.y = clamp(py - drag.oy, 0, dh - R.h); }
+      else {
+        let w = Math.abs(px - drag.ax), h = Math.abs(py - drag.ay);
+        if (ratio) { if (w / ratio > h) w = h * ratio; else h = w / ratio; }
+        R = { x: px >= drag.ax ? drag.ax : drag.ax - w, y: py >= drag.ay ? drag.ay : drag.ay - h, w, h };
+      }
+      draw();
+    };
+    stage.onpointerup = stage.onpointercancel = () => { drag = null; if (R.w < 20 || R.h < 20) full(); };
+    $("cropRatio").onchange = e => { ratio = parseFloat(e.target.value) || 0; full(); };
+    $("cropReset").onclick = full;
+    const fr = new FileReader();
+    fr.onload = () => { img.onload = () => { dw = img.clientWidth; dh = img.clientHeight; full(); }; img.src = fr.result; };
+    fr.readAsDataURL(o.file);
+  }
+  $("pdSave").onclick = () => {
+    if (o.file && !dw) return;
+    const url = o.file ? cropData(img, R, dw, o.maxSide || 1600) : null;
+    const vals = o.fields ? { kind: $("fKind").value, date: $("fDate").value.trim() || "Дата неизвестна",
+      event: $("fEvent").value, people: $("fPeople").value.trim(), desc: $("fDesc").value.trim() } : {};
+    closeDlg();
+    o.onSave(url, vals);
+  };
+}
+function pickFile(cb) {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*";
+  inp.onchange = () => { if (inp.files[0]) cb(inp.files[0]); };
+  inp.click();
+}
+const afterAdd = v => { if (v.event === "Похороны") showToast("Сохранено. Похороны видны в «По событию» → «Похороны»"); };
+function uploadFamilyPhoto() {
+  pickFile(file => openPhotoDialog({ title: "Новое фото в семейную галерею", file, fields: true, maxSide: 1600,
+    onSave: (url, v) => { familyPhotos.push({ dataUrl: url, ...v }); renderFamilyPhotos(); saveState(); afterAdd(v); } }));
+}
+function uploadPersonalTreePhoto(ownerId) {
+  pickFile(file => openPhotoDialog({ title: "Новое фото в галерею древа", file, fields: true, maxSide: 1600,
+    onSave: (url, v) => { getPersonalTreePhotos(ownerId).push({ dataUrl: url, ...v }); renderPersonalTreeGallery(); saveState(); afterAdd(v); } }));
+}
+// Фото человека: обрезка перед добавлением в карточку
+function uploadPersonPhoto(e) {
+  const file = e.target.files[0], id = currentEditId;
+  e.target.value = "";
+  if (!file) return;
+  openPhotoDialog({ title: "Фото для карточки", file, fields: false, maxSide: 640, ratio: 1,
+    onSave: url => { getPerson(id).photoData = url; showPerson(id); renderAll(); } });
+}
+
+/* ================== INIT ================== */
+(function init() {
+  const loaded = loadState();
+  migrate();
+  if (!loaded) saveState();
+  route();
+})();
+</script>
+
+</body></html>
