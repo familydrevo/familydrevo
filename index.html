@@ -1864,6 +1864,7 @@ async function loadSharedState() {
     const rows = await r.json();
     if (!rows.length || !rows[0].data) return false;
     const d = rows[0].data;
+    if (Array.isArray(d.family) && d.family.length) sharedBase = cloneState(d);   // что было в базе на момент открытия
     if (Array.isArray(d.family) && d.family.length) {
       family = d.family;
       familyPhotos = Array.isArray(d.familyPhotos) ? d.familyPhotos : [];
@@ -1880,32 +1881,157 @@ async function loadSharedState() {
   return false;
 }
 
+/* ---- Безопасное сохранение в общую базу: слияние вместо затирания ----
+   При открытии запоминаем, что было в базе (sharedBase). При сохранении заново читаем базу,
+   сливаем три версии (то, что было → моё → то, что в базе сейчас) и пишем только если версия
+   в базе не изменилась за время слияния; иначе повторяем. Чужие правки не теряются. */
+let sharedBase = null, savingNow = false;
+const jsonEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const cloneState = d => JSON.parse(JSON.stringify({
+  family: d.family || [],
+  familyPhotos: Array.isArray(d.familyPhotos) ? d.familyPhotos : [],
+  personalTreePhotos: (d.personalTreePhotos && typeof d.personalTreePhotos === "object") ? d.personalTreePhotos : {}
+}));
+
+// Списки без id (spouseIds, фото): база → моё → чужое
+function mergeList(base, mine, theirs) {
+  const key = x => JSON.stringify(x);
+  const bk = new Set(base.map(key)), mk = new Set(mine.map(key));
+  const removed = new Set([...bk].filter(k => !mk.has(k)));
+  const res = theirs.filter(x => !removed.has(key(x)));
+  const rk = new Set(res.map(key));
+  mine.forEach(x => { const k = key(x); if (!bk.has(k) && !rk.has(k)) { res.push(x); rk.add(k); } });
+  return res;
+}
+// Один человек: меняем только те поля, которые правил я; остальное остаётся как в базе
+function mergePerson(b, m, t) {
+  const r = { ...t };
+  new Set([...Object.keys(b), ...Object.keys(m), ...Object.keys(t)]).forEach(k => {
+    if (jsonEq(m[k], b[k])) return;
+    if (Array.isArray(m[k]) || Array.isArray(b[k])) r[k] = mergeList(b[k] || [], m[k] || [], t[k] || []);
+    else if (m[k] === undefined) delete r[k];
+    else r[k] = m[k];
+  });
+  return r;
+}
+function mergeStates(base, mineIn, theirs) {
+  const mine = JSON.parse(JSON.stringify(mineIn));
+  const B = new Map(base.family.map(p => [p.id, p])), T = new Map(theirs.family.map(p => [p.id, p]));
+
+  // Двое одновременно добавили людей с одним и тем же id — моему даём новый id
+  const remap = new Map();
+  let next = Math.max(0, ...mine.family.map(p => p.id), ...theirs.family.map(p => p.id)) + 1;
+  mine.family.forEach(m => {
+    const t = T.get(m.id);
+    if (!B.has(m.id) && t && !jsonEq(t, m)) remap.set(m.id, next++);
+  });
+  if (remap.size) {
+    const mp = x => remap.has(x) ? remap.get(x) : x;
+    mine.family.forEach(p => {
+      const own = remap.has(p.id);
+      p.parentId = p.parentId == null ? p.parentId : mp(p.parentId);
+      p.parentId2 = p.parentId2 == null ? p.parentId2 : mp(p.parentId2);
+      p.spouseIds = (p.spouseIds || []).map(mp);
+      if (own) p.id = remap.get(p.id);
+    });
+    remap.forEach((nid, oid) => {
+      if (mine.personalTreePhotos[oid]) { mine.personalTreePhotos[nid] = mine.personalTreePhotos[oid]; delete mine.personalTreePhotos[oid]; }
+    });
+  }
+
+  const M = new Map(mine.family.map(p => [p.id, p]));
+  const pick = id => {
+    const b = B.get(id), m = M.get(id), t = T.get(id);
+    if (!b) return m || t;
+    if (m && t) return mergePerson(b, m, t);
+    if (m) return jsonEq(b, m) ? null : m;     // в базе удалили: если я не правил — удаляем, иначе оставляем
+    if (t) return jsonEq(b, t) ? null : t;     // я удалил: если в базе не правили — удаляем, иначе оставляем
+    return null;
+  };
+  const order = [...T.keys(), ...mine.family.map(p => p.id).filter(id => !T.has(id))];
+  const fam = order.map(pick).filter(Boolean);
+  const ids = new Set(fam.map(p => p.id));
+  fam.forEach(p => {                                   // убираем ссылки на удалённых
+    if (p.parentId != null && !ids.has(p.parentId)) p.parentId = null;
+    if (p.parentId2 != null && !ids.has(p.parentId2)) p.parentId2 = null;
+    p.spouseIds = (p.spouseIds || []).filter(s => ids.has(s));
+  });
+
+  const ptp = {};
+  new Set([...Object.keys(base.personalTreePhotos), ...Object.keys(mine.personalTreePhotos), ...Object.keys(theirs.personalTreePhotos)]).forEach(k => {
+    const l = mergeList(base.personalTreePhotos[k] || [], mine.personalTreePhotos[k] || [], theirs.personalTreePhotos[k] || []);
+    if (l.length) ptp[k] = l;
+  });
+  const out = {
+    family: fam,
+    familyPhotos: mergeList(base.familyPhotos, mine.familyPhotos, theirs.familyPhotos),
+    personalTreePhotos: ptp
+  };
+  // «чужие правки» = люди, которых в базе добавили, изменили или удалили с тех пор, как я её загрузил
+  const ids2 = new Set([...B.keys(), ...T.keys()]);
+  out.pulled = [...ids2].filter(id => !jsonEq(B.get(id), T.get(id))).length;
+  return out;
+}
+
 async function saveSharedState() {
   if (SUPABASE_URL.startsWith("ВСТАВЬ_") || SUPABASE_ANON_KEY.startsWith("ВСТАВЬ_")) {
     throw new Error("Не настроено подключение к Supabase");
   }
-  const r = await fetch(SUPABASE_URL + "/rest/v1/" + SUPABASE_TABLE, {
-    method: "POST",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": "Bearer " + SUPABASE_ANON_KEY,
-      "Content-Type": "application/json",
-      "Prefer": "resolution=merge-duplicates,return=minimal"
-    },
-    body: JSON.stringify({ id: 1, data: getSharedPayload() })
-  });
-  if (!r.ok) throw new Error("HTTP " + r.status + ": " + await r.text());
+  const H = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
+  const URL1 = SUPABASE_URL + "/rest/v1/" + SUPABASE_TABLE;
+  const mine = { family, familyPhotos, personalTreePhotos };
+  const extra = { currentPhotoSort, currentPhotoFilter };
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const r0 = await fetch(URL1 + "?id=eq.1&select=data", { headers: H });
+    if (!r0.ok) throw new Error("HTTP " + r0.status + ": " + await r0.text());
+    const rows = await r0.json();
+    const server = rows.length ? rows[0].data : null;
+
+    if (!server || !Array.isArray(server.family) || !server.family.length) {      // базы ещё нет
+      const payload = { ...mine, ...extra, version: 1 };
+      const r = await fetch(URL1, { method: "POST", headers: { ...H, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ id: 1, data: payload }) });
+      if (!r.ok) throw new Error("HTTP " + r.status + ": " + await r.text());
+      sharedBase = cloneState(payload);
+      return { pulled: 0 };
+    }
+
+    let merged;
+    if (sharedBase) merged = mergeStates(sharedBase, mine, cloneState(server));
+    else if (confirm("Общая база не была загружена при открытии страницы, поэтому слияние невозможно.\n\nПерезаписать общую базу вашей версией?\n(Если не уверены — нажмите «Отмена», обновите страницу и повторите правки.)")) merged = { ...mine, pulled: 0 };
+    else throw new Error("Сохранение отменено");
+
+    const sv = server.version == null ? null : Number(server.version);
+    const payload = { family: merged.family, familyPhotos: merged.familyPhotos, personalTreePhotos: merged.personalTreePhotos, ...extra, version: (sv || 0) + 1 };
+    // Запись только если версия в базе всё ещё та, которую мы читали (иначе кто-то успел сохранить — повторяем слияние)
+    const cond = sv == null ? "data->>version=is.null" : "data->>version=eq." + sv;
+    const r = await fetch(URL1 + "?id=eq.1&" + cond + "&select=id", { method: "PATCH",
+      headers: { ...H, "Content-Type": "application/json", "Prefer": "return=representation" }, body: JSON.stringify({ data: payload }) });
+    if (!r.ok) throw new Error("HTTP " + r.status + ": " + await r.text());
+    if ((await r.json()).length === 0) continue;
+
+    family = merged.family; familyPhotos = merged.familyPhotos; personalTreePhotos = merged.personalTreePhotos;
+    sharedBase = cloneState(payload);
+    return { pulled: merged.pulled };
+  }
+  throw new Error("База слишком активно меняется другими. Повторите сохранение через пару секунд.");
 }
 
 async function saveChanges() {
+  if (savingNow) return;
+  savingNow = true;
   saveState();
   try {
-    await saveSharedState();
-    showToast("☁️ Сохранено для всех посетителей");
+    const res = await saveSharedState();
+    renderAll();
+    showToast(res.pulled ? "☁️ Сохранено. Подтянуто чужих правок: " + res.pulled : "☁️ Сохранено для всех посетителей");
   } catch (e) {
     console.error(e);
-    showToast("⚠️ Локально сохранено. Общая база не настроена или недоступна.");
-    alert("Изменения сохранены в этом браузере, но не отправлены в общую базу.\n\nПроверьте SUPABASE_URL и SUPABASE_ANON_KEY в файле.");
+    showToast("⚠️ Локально сохранено, в общую базу не отправлено.");
+    alert("Изменения сохранены в этом браузере, но не отправлены в общую базу.\n\n" + (e && e.message ? e.message : e));
+  } finally {
+    savingNow = false;
   }
 }
 
