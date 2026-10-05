@@ -172,6 +172,8 @@ body { background: #f8f4eb; color: #3f2a1e; }
   padding: 0 2px;
 }
 
+.couple-link.partner-link::after { content: '👩‍❤️‍💋‍👨'; }
+
 .pair-children {
   display: flex;
   flex-direction: column;
@@ -491,14 +493,14 @@ function renderPersonBranch(person, parentUl, childrenMap, rendered) {
     wrapper.appendChild(makeNode(person, true, palette));
   } else if (spouses.length === 1) {
     wrapper.appendChild(makeNode(person, true, palette));
-    wrapper.appendChild(makeCoupleLink());
+    wrapper.appendChild(makeCoupleLink(spouses[0]));
     wrapper.appendChild(makeNode(spouses[0], false, palette));
   } else {
     wrapper.appendChild(makeNode(spouses[0], false, palette));
-    wrapper.appendChild(makeCoupleLink());
+    wrapper.appendChild(makeCoupleLink(spouses[0]));
     wrapper.appendChild(makeNode(person, true, palette));
     for (let i = 1; i < spouses.length; i++) {
-      wrapper.appendChild(makeCoupleLink());
+      wrapper.appendChild(makeCoupleLink(spouses[i]));
       wrapper.appendChild(makeNode(spouses[i], false, palette));
     }
   }
@@ -558,9 +560,9 @@ function makeNode(person, isMain, palette) {
   return div;
 }
 
-function makeCoupleLink() {
+function makeCoupleLink(spouse) {
   const link = document.createElement("div");
-  link.className = "couple-link";
+  link.className = "couple-link" + (isPartner(spouse) ? " partner-link" : "");
   return link;
 }
 
