@@ -361,7 +361,18 @@ let currentEditId = null;
 let currentTab = "main";
 let viewMode = 'full';
 let currentOwnerId = null;
-const protectedIds = [0, 1];
+// Все люди, которые изначально были в летописи, считаются исходными.
+// Их нельзя удалить, а если общая база потеряла такую запись — она восстанавливается.
+const INITIAL_FAMILY_SNAPSHOT = JSON.parse(JSON.stringify(family));
+const INITIAL_PERSON_IDS = new Set(INITIAL_FAMILY_SNAPSHOT.map(p => p.id));
+const protectedIds = [...INITIAL_PERSON_IDS];
+
+function restoreInitialPeople() {
+  const existing = new Set(family.map(p => p.id));
+  INITIAL_FAMILY_SNAPSHOT.forEach(original => {
+    if (!existing.has(original.id)) family.push(JSON.parse(JSON.stringify(original)));
+  });
+}
 let currentPhotoSort = 'none';
 let currentPhotoFilter = 'all';
 let currentPersonalSort = 'none';
@@ -418,6 +429,7 @@ function loadState() {
       personalTreePhotos = (d.personalTreePhotos && typeof d.personalTreePhotos === 'object') ? d.personalTreePhotos : {};
       if (d.currentPhotoSort) currentPhotoSort = d.currentPhotoSort;
       if (d.currentPhotoFilter) currentPhotoFilter = d.currentPhotoFilter;
+      restoreInitialPeople();
       migrate();
       return true;
     }
@@ -1594,13 +1606,26 @@ function buildChildrenMap(members) {
   const map = new Map();
   members.forEach(m => {
     const cluster = new Set([m.id, ...getSpouses(m).map(s => s.id)]);
-    map.set(m.id, members.filter(ch => ch.id !== m.id && (cluster.has(ch.parentId) || cluster.has(ch.parentId2))));
+    map.set(m.id, sortChildrenByAge(members.filter(ch => ch.id !== m.id && (cluster.has(ch.parentId) || cluster.has(ch.parentId2)))));
   });
   return map;
 }
+function getBirthYearForSort(person) {
+  const m = String(person?.years || "").match(/(?:^|\D)(\d{4})(?:\D|$)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+function sortChildrenByAge(children) {
+  return [...children].sort((a, b) => {
+    const ay = getBirthYearForSort(a), by = getBirthYearForSort(b);
+    if (ay != null && by != null && ay !== by) return ay - by;
+    if (ay != null && by == null) return -1;
+    if (ay == null && by != null) return 1;
+    return String(a.name || "").localeCompare(String(b.name || ""), "ru");
+  });
+}
 function groupChildrenBySecondParent(children) {
   const groups = new Map();
-  children.forEach(ch => {
+  sortChildrenByAge(children).forEach(ch => {
     const key = [ch.parentId, ch.parentId2].filter(x => x != null).sort((a, b) => a - b).join("_") || "__none__";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(ch);
@@ -1832,6 +1857,7 @@ async function loadSharedState() {
       personalTreePhotos = (d.personalTreePhotos && typeof d.personalTreePhotos === "object") ? d.personalTreePhotos : {};
       if (d.currentPhotoSort) currentPhotoSort = d.currentPhotoSort;
       if (d.currentPhotoFilter) currentPhotoFilter = d.currentPhotoFilter;
+      restoreInitialPeople();
       migrate();
       saveState();
       return true;
@@ -2199,6 +2225,7 @@ function uploadPersonPhoto(e) {
 /* ================== INIT ================== */
 (async function init() {
   const loaded = loadState();
+  restoreInitialPeople();
   migrate();
   if (!loaded) saveState();
   const sharedLoaded = await loadSharedState();
