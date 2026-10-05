@@ -723,6 +723,35 @@ function getBirthYear(person) {
   return m ? Number(m[1]) : null;
 }
 
+function clonePersonalRelativeToMain(personId, seen = new Set()) {
+  const src = getPerson(personId);
+  if (!src || src.treeOwnerId == null || seen.has(src.id)) return src;
+  seen.add(src.id);
+  const existing = family.find(x => x.treeOwnerId == null && x.name === src.name && x.years === src.years);
+  if (existing) return existing;
+  const newId = Math.max(...family.map(x => x.id)) + 1;
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = newId;
+  delete copy.treeOwnerId;
+  copy.spouseIds = [];
+  family.push(copy);
+  return copy;
+}
+
+function syncMainTreeParentsFromPersonalTrees() {
+  // Если у человека основного древа родитель находится только в личном древе,
+  // автоматически создаём его копию в основном древе и заменяем ссылку.
+  family.filter(inMain).forEach(person => {
+    ["parentId", "parentId2"].forEach(slot => {
+      const linked = getPerson(person[slot]);
+      if (linked && linked.treeOwnerId != null) {
+        const copy = clonePersonalRelativeToMain(linked.id);
+        if (copy && copy.id !== linked.id) person[slot] = copy.id;
+      }
+    });
+  });
+}
+
 function getParentCandidates(person, gender) {
   const sc = currentScope();
   let pool;
@@ -2174,6 +2203,7 @@ function uploadPersonPhoto(e) {
   if (!loaded) saveState();
   const sharedLoaded = await loadSharedState();
   if (!sharedLoaded && !loaded) saveState();
+  syncMainTreeParentsFromPersonalTrees();
   route();
 })();
 </script>
